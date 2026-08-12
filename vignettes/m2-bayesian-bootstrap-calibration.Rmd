@@ -1,0 +1,251 @@
+---
+title: "The Bayesian bootstrap and the width calibration"
+output: rmarkdown::html_vignette
+bibliography: references.bib
+link-citations: true
+vignette: >
+  %\VignetteIndexEntry{The Bayesian bootstrap and the width calibration}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+<!-- Block MathML neither shrinks nor scrolls on its own, so a display
+equation wider than the viewport widens the whole page. Let it scroll in place.
+The pkgdown site gets the same rule from pkgdown/extra.css. -->
+<style>
+math[display="block"] { display: block; max-width: 100%; overflow-x: auto; }
+</style>
+
+```{r setup, include = FALSE}
+source("_setup.R")
+library(bayesmokken)
+```
+
+```{r fit, include = FALSE}
+data(srs)
+fit <- bb_mokken_h(srs, draws = 2000, seed = 1)
+iv <- bm_interval(fit)
+```
+
+This vignette covers the binary path: how the interval is generated, why it
+needed correcting, and why the correction's constant is not an argument.
+Notation follows `vignette("m1-foundations")`.
+
+## The Bayesian bootstrap
+
+Draw a weight vector for the $n$ respondents from a flat Dirichlet
+[@rubin_bayesian_1981],
+
+$$(w_1, \dots, w_n) \sim \mathrm{Dirichlet}(1, \dots, 1),$$
+
+recompute $H$ under those weights, and repeat $B$ times. The resulting spread
+of $H$ values is the sampling variability the interval describes.
+
+```{r draws}
+d <- bm_draws(fit, what = "scale")
+data.frame(draws = length(d), mean = mean(d), sd = sd(d))
+```
+
+### Pattern grouping is an implementation, not a method
+
+With binary items, many respondents share a response pattern, and $H$ depends
+on the data only through the pattern frequencies. The implementation therefore
+draws weights over *patterns* rather than over rows. This is a sparsity
+optimisation with no effect on the distribution being sampled — aggregating
+Dirichlet coordinates over a partition yields a Dirichlet with summed
+parameters, which is exactly the pattern-level law.
+
+```{r patterns}
+c(respondents = iv$n_complete,
+  distinct_patterns = nrow(unique(srs[stats::complete.cases(srs), ])))
+```
+
+Where it shows is speed: this fit resamples
+`r nrow(unique(srs[stats::complete.cases(srs), ]))` patterns rather than
+`r iv$n_complete` rows on every draw.
+
+## Why the raw interval needed correcting
+
+The first-order argument is local, not global. With a fixed declared item set,
+strictly ordered interior marginal probabilities, maximum-covariance
+denominators separated from zero, and a positive finite influence-function
+variance, $H$ is a smooth functional and admits an influence-function
+expansion. On that **regular domain**, the Bayesian bootstrap's conditional law
+agrees with the sampling law to first order [@lo_large_1987]. Tied margins,
+support boundaries, and vanishing denominators are outside that smooth-domain
+statement; at a tie the relevant functional may instead be piecewise smooth.
+
+The theory establishes an order statement: changing an interval-width
+multiplier by $O(n^{-1/2})$ perturbs its endpoints by $O_p(n^{-1})$, so the
+first-order law is preserved. It does **not** determine whether the raw
+interval should widen or shrink, nor does it derive the functional form or the
+constant below. The observed finite-sample shortfall, the widening direction,
+and $\gamma=0.25$ came from the prespecified train–validate–confirm simulation
+program.
+
+## The correction
+
+Let $m$ be the midpoint of the raw interval and $w$ its half-width. The
+calibrated interval is
+
+$$\left[\, m - \kappa_n w,\ \; m + \kappa_n w \,\right],
+\qquad \kappa_n = 1 + \frac{\gamma}{\sqrt{n}}, \qquad \gamma = 0.25 .$$
+
+**Executable consistency check — reconstruct endpoints from exported raw
+draws, raw-data $n$, literal $0.25$, and type-8 quantiles.**
+
+```{r verify-calibration}
+raw_q <- stats::quantile(d, c(0.025, 0.975), type = 8,
+                         names = FALSE, na.rm = TRUE)
+complete_n <- nrow(srs[stats::complete.cases(srs), , drop = FALSE])
+m <- mean(raw_q)
+w <- diff(raw_q) / 2
+kappa <- 1 + 0.25 / sqrt(complete_n)
+expected <- c(lower = m - kappa * w, upper = m + kappa * w)
+
+stopifnot(
+  identical(complete_n, iv$n_complete),
+  isTRUE(all.equal(raw_q, c(iv$raw_lower, iv$raw_upper),
+                   tolerance = 1e-12)),
+  isTRUE(all.equal(expected, c(lower = iv$lower, upper = iv$upper),
+                   tolerance = 1e-12))
+)
+c(midpoint = m, kappa = kappa, expected)
+```
+
+Three properties follow from that form and are enforced rather than merely
+intended:
+
+**The midpoint never moves.** The correction changes length only. A shift would
+be a different kind of claim, and none is made.
+
+**No clipping.** If an endpoint falls outside $[-1, 1]$ it is reported where it
+falls. Clipping would silently improve the appearance of coverage at exactly
+the configurations where the method is under most strain.
+
+**No method cascade.** One method is applied, always. A procedure that fell
+back to an alternative when the first looked unsatisfactory would have coverage
+properties nobody measured.
+
+```{r frozen}
+c(gamma = iv$gamma, clipping = iv$endpoint_clipping,
+  cascade = iv$per_replication_method_cascade, level = iv$level)
+```
+
+The multiplier shrinks with $n$, as an $n^{-1/2}$ term must:
+
+```{r fig-calibration, fig.alt = "Width multiplier for the binary correction against sample size, starting near 1.08 at n = 10 and decaying toward 1 as n grows."}
+bm_plot_calibration(mode = "binary")
+```
+
+## Why $\gamma$ is not an argument
+
+$\gamma = 0.25$ was selected on training conditions, evaluated once on held-out
+conditions, and then confirmed prospectively on a fresh simulation — so it was
+never tuned on the data used to evaluate it. That sequence is what licenses the
+coverage claim, and it licenses it **for this value only**.
+
+Exposing $\gamma$ would invite users to vary it, and the coverage of any other
+value is simply unmeasured. So the constant is frozen and unreachable:
+
+```{r no-gamma, error = TRUE}
+bb_mokken_h(srs, draws = 200, seed = 1, gamma = 0.5)
+```
+
+The confidence level is frozen for the same reason:
+
+```{r no-level, error = TRUE}
+bb_mokken_h(srs, draws = 200, seed = 1, level = 0.90)
+```
+
+If you want the uncorrected interval, it remains available under its own name,
+labelled as making no calibrated claim:
+
+```{r equal-tail}
+raw <- bb_mokken_h(srs, draws = 2000, seed = 1, interval = "equal_tail")
+bm_interval(raw)$method_id
+```
+
+## Quantile type and defined draws
+
+The endpoints are type-8 sample quantiles, which is a fixed choice rather than
+R's default:
+
+**Partial independent check — base R recomputes the two quantile types from
+the exported draw vector.**
+
+```{r verify-quantile}
+q8 <- stats::quantile(d, c(0.025, 0.975), type = 8, names = FALSE)
+q7 <- stats::quantile(d, c(0.025, 0.975), type = 7, names = FALSE)
+
+stopifnot(all.equal(q8, c(iv$raw_lower, iv$raw_upper), tolerance = 1e-12))
+rbind(`type 8 (used)` = q8, `type 7 (R default)` = q7,
+      `in the object` = c(iv$raw_lower, iv$raw_upper))
+```
+
+Type 8 reproduces the stored endpoints to `r format(max(abs(q8 - c(iv$raw_lower, iv$raw_upper))), scientific = TRUE, digits = 2)`,
+while type 7 differs in the fourth decimal. The difference is small but it is
+not nothing, and pinning the type is what makes the endpoints reproducible
+across machines.
+
+A draw whose denominator vanishes gives an undefined coefficient. Those are
+counted, and the interval requires enough defined draws before it will report:
+
+```{r defined}
+c(defined = iv$defined_draws, total = iv$total_draws,
+  minimum = iv$minimum_defined_draws)
+```
+
+For the binary path the minimum is $\max(100, \lceil 0.90 B \rceil)$:
+
+**Executable consistency check — stored draw counts obey the declared
+minimum formula.**
+
+```{r verify-minimum}
+stopifnot(iv$minimum_defined_draws == max(100, ceiling(0.90 * iv$total_draws)))
+```
+
+Falling short is a failure, not a smaller sample. An interval computed from
+whichever draws happened to be defined would describe a conditional
+distribution nobody specified.
+
+## The evidence
+
+The confirmatory simulation spanned **four data-generating families** chosen to
+strain the statistic in different ways, over **108,000 replications**, under a
+prespecified rule in which undefined intervals count as misses.
+
+| Method | Coverage at nominal 95% |
+|---|---|
+| **Calibrated (this package's default)** | **94.5% – 95.1%** |
+| Influence-function delta-method Wald | 82.6% – 91.8% |
+| BB-based bias-corrected accelerated | as low as 71.4% |
+
+The cost of the correction was an increase in mean interval length of **less
+than 3%**. The comparators were implemented under a strict regularity screen,
+and their refusals were counted as misses — the same rule applied to the
+calibrated interval.
+
+The reason to prefer the calibrated interval is not that it is Bayesian, or
+newer. It is that its coverage was measured, prospectively, under a rule fixed
+in advance.
+
+## Correspondence with the article
+
+| This vignette | Binary article |
+|---|---|
+| Bayesian bootstrap, pattern grouping | §4 |
+| Influence function, first-order agreement | §4 |
+| Regular-domain order argument for an $O_p(n^{-1})$ endpoint perturbation | §4 |
+| The correction and its frozen constant | §4 |
+| Confirmatory simulation and comparators | §6 |
+
+## Where to go next
+
+- `vignette("m4-hierarchical-bb-targets")` — the clustered path, where the
+  correction runs the other way.
+- `vignette("m5-reproducibility-and-evidence")` — the RNG contract and the full
+  validation record.
+- `vignette("a2-binary-srs-workflow")` — the same method, applied.
+
+## References

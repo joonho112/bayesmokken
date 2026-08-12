@@ -1,0 +1,246 @@
+---
+title: "Polytomous H by finite comonotone transport"
+output: rmarkdown::html_vignette
+bibliography: references.bib
+link-citations: true
+vignette: >
+  %\VignetteIndexEntry{Polytomous H by finite comonotone transport}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+<!-- Block MathML neither shrinks nor scrolls on its own, so a display
+equation wider than the viewport widens the whole page. Let it scroll in place.
+The pkgdown site gets the same rule from pkgdown/extra.css. -->
+<style>
+math[display="block"] { display: block; max-width: 100%; overflow-x: auto; }
+</style>
+
+```{r setup, include = FALSE}
+source("_setup.R")
+library(bayesmokken)
+```
+
+```{r fit, include = FALSE}
+data(classroom_wb)
+items <- paste0("wb", 1:6)
+sup <- bm_supports(classroom_wb, items = items)
+emp <- mokken_h(classroom_wb[, items], item_type = "ordinal", supports = sup,
+                weight_law = "iid_respondent", warn = FALSE)
+pairs <- bm_pair_h(emp)
+```
+
+The denominator of $H$ is the largest covariance two items could have, given
+their marginal distributions. For binary items that maximum has a closed form.
+For polytomous items it does not, and this vignette is about how the package
+computes it exactly anyway.
+
+## The problem
+
+$$H_{ij} = \frac{\operatorname{Cov}(Y_i, Y_j)}{\operatorname{Cov}^{\max}(Y_i, Y_j)},
+\qquad
+\operatorname{Cov}^{\max}(Y_i, Y_j) = \max_{\pi \in \Pi(F_i, F_j)} \operatorname{Cov}_{\pi}(Y_i, Y_j),$$
+
+where $\Pi(F_i, F_j)$ is the set of joint distributions with the given
+marginals. The maximisation is over couplings, and there are infinitely many.
+
+## The solution
+
+The maximum is attained by the **comonotone** coupling — the one that pairs
+each quantile of $F_i$ with the same quantile of $F_j$
+[@ruschendorf_random_1982]. Since $\mathrm{E}[Y_i]\mathrm{E}[Y_j]$ is fixed by
+the marginals, maximising the covariance is maximising $\mathrm{E}[Y_iY_j]$, and
+
+$$\mathrm{E}^{\max}[Y_i Y_j] = \int_0^1 F_i^{-1}(u) \, F_j^{-1}(u) \, \mathrm{d}u .$$
+
+On a **finite** support this integral is a finite sum, so the maximum is
+computed exactly rather than approximated. That is the property the whole
+approach rests on.
+
+## The algorithm
+
+Walk both sorted supports together, transporting mass:
+
+1. Sort each support ascending and take its probability masses.
+2. Form the cumulative distributions $F_i$ and $F_j$ on $[0, 1]$.
+3. The comonotone joint mass at $(y_i, y_j)$ is the **overlap** of the interval
+   that $y_i$ occupies in $F_i$ with the interval $y_j$ occupies in $F_j$.
+4. Accumulate $y_i \, y_j$ times that overlap.
+
+Write the declared supports as
+$\mathcal Y_i=\{y_{i1},\ldots,y_{iK_i}\}$ and
+$\mathcal Y_j=\{y_{j1},\ldots,y_{jK_j}\}$. Each positive allocation consumes
+at least one remaining support mass; the last allocation exhausts both. The
+walk therefore makes at most $K_i+K_j-1$ positive allocations.
+
+### Independent oracle: a separate double-loop reimplementation
+
+The transcription above is short enough to write out and check against the
+package for every pair in a real dataset.
+
+```{r reimplementation}
+comonotone_max_cov <- function(x, y, support_x, support_y = support_x,
+                               weights = rep(1, length(x))) {
+  weights <- weights / sum(weights)
+  fx <- vapply(support_x, function(value) sum(weights[x == value]), numeric(1))
+  fy <- vapply(support_y, function(value) sum(weights[y == value]), numeric(1))
+  Fx <- c(0, cumsum(fx))
+  Fy <- c(0, cumsum(fy))
+  exy <- 0
+  for (i in seq_along(support_x)) {
+    for (j in seq_along(support_y)) {
+      overlap <- min(Fx[i + 1], Fy[j + 1]) - max(Fx[i], Fy[j])
+      if (overlap > 0) {
+        exy <- exy + support_x[i] * support_y[j] * overlap
+      }
+    }
+  }
+  exy - sum(support_x * fx) * sum(support_y * fy)
+}
+
+delta <- vapply(seq_len(nrow(pairs)), function(k) {
+  xi <- classroom_wb[[as.character(pairs$item_i[k])]]
+  yj <- classroom_wb[[as.character(pairs$item_j[k])]]
+  abs(comonotone_max_cov(xi, yj, 1:5) - pairs$max_covariance[k])
+}, numeric(1))
+
+stopifnot(max(delta) < 1e-12)
+data.frame(pairs_checked = length(delta), max_absolute_difference = max(delta))
+```
+
+All `r nrow(pairs)` pairs agree to
+`r format(max(delta), scientific = TRUE, digits = 2)` — machine precision. The
+package's implementation is the streaming transport rather than the double loop
+above, which is why the reimplementation is worth having: it agrees without
+sharing code.
+
+### A worked pair
+
+```{r worked}
+x <- classroom_wb$wb1
+y <- classroom_wb$wb2
+rbind(wb1 = table(factor(x, levels = 1:5)) / length(x),
+      wb2 = table(factor(y, levels = 1:5)) / length(y))
+
+c(observed_covariance = stats::cov(x, y) * (length(x) - 1) / length(x),
+  maximum_attainable  = comonotone_max_cov(x, y, 1:5),
+  H_pair              = pairs$H[pairs$item_i == "wb1" & pairs$item_j == "wb2"])
+```
+
+The ratio of the first to the second is the pair coefficient. Note that the
+maximum is a property of the two *marginals* alone — it does not depend on how
+the items actually covary.
+
+## Knots
+
+A **knot** is a point where the two cumulative distributions coincide, so the
+transport walk advances both pointers at once. Knots are where the algorithm's
+arithmetic is most delicate: a cumulative-distribution gap near zero is where
+floating-point comparison decides between "this mass is exhausted" and "a
+sliver remains".
+
+```{r knots}
+k <- bm_knot_diagnostics(emp)
+k[1, c("exact_knot_count", "near_knot_count", "minimum_internal_cdf_gap",
+       "exact_tol", "near_tol")]
+```
+
+The smallest internal gap here is
+`r fmt_h(k$minimum_internal_cdf_gap[1], 5)`, comfortably above the tolerances,
+and no pair is near a knot. When a dataset does sit near one, the diagnostic
+says so rather than leaving you to wonder.
+
+## A numerical trap, and the fix
+
+Version 0.0.0.9001 corrected a real defect here, and it is instructive because
+it shows what "exact on finite support" costs in practice.
+
+The deterministic kernel treated any remaining mass at or below `1e-12` as
+exhausted. That is a reasonable-sounding guard and it is wrong: a *valid*
+positive mass smaller than the tolerance would cause the pointer to advance
+early, dropping the rest of that support point's contribution. The repair was
+to advance pointers only on exactly exhausted mass, zero exhausted points
+explicitly, and assert that total transported mass equals one within tolerance.
+
+```{r mass-conservation}
+# Independent public-path oracle with unequal supports, missing categories,
+# arbitrary weights, and one valid mass below the old 1e-12 drop threshold.
+coupling_mass <- function(x, y, support_x, support_y, weights) {
+  weights <- weights / sum(weights)
+  fx <- vapply(support_x, function(value) sum(weights[x == value]), numeric(1))
+  fy <- vapply(support_y, function(value) sum(weights[y == value]), numeric(1))
+  Fx <- c(0, cumsum(fx)); Fy <- c(0, cumsum(fy))
+  total <- 0
+  for (i in seq_along(support_x)) for (j in seq_along(support_y)) {
+    total <- total + max(0, min(Fx[i + 1], Fy[j + 1]) - max(Fx[i], Fy[j]))
+  }
+  total
+}
+
+tiny_data <- data.frame(
+  a = c(0, 2, 2, 0),
+  b = c(0, 1, 3, 3)
+)
+tiny_weights <- c(5e-13, 0.20, 0.35, 0.45)
+tiny_supports <- list(a = c(0, 1, 2), b = c(0, 1, 2, 3))
+tiny_fit <- mokken_h(
+  tiny_data,
+  item_type = "ordinal",
+  supports = tiny_supports,
+  weights = tiny_weights,
+  warn = FALSE
+)
+tiny_pair <- bm_pair_h(tiny_fit)
+oracle_max <- comonotone_max_cov(
+  tiny_data$a, tiny_data$b,
+  tiny_supports$a, tiny_supports$b,
+  tiny_weights
+)
+oracle_mass <- coupling_mass(
+  tiny_data$a, tiny_data$b,
+  tiny_supports$a, tiny_supports$b,
+  tiny_weights
+)
+
+stopifnot(
+  abs(oracle_mass - 1) < 1e-12,
+  abs(tiny_pair$max_covariance - oracle_max) < 1e-12
+)
+c(transported_mass = oracle_mass,
+  maximum_covariance_difference = tiny_pair$max_covariance - oracle_max)
+```
+
+This second receipt is also an **independent adversarial oracle**: the public
+fit sees unequal declared supports and a valid tiny mass, while the expected
+denominator and transported mass come from the separate overlap implementation.
+
+The batched survival-sum path used by every bootstrap draw was never affected;
+only the per-pair deterministic kernel was, and only for configurations
+containing adversarially tiny valid masses. It is recorded here because a
+method that claims exactness should show where its exactness was once at risk.
+
+## Relation to earlier work
+
+Molenaar's weighted coefficient extends Mokken scaling to multicategory items
+[@molenaar_weighted_1991] and is the standard polytomous generalisation; the
+maximum covariance in its denominator is the same quantity computed here.
+Weighted Mokken analysis in R has prior implementations
+[@andreadis_weighted_2017; @van_der_ark_mokken_2008]. What this package adds is
+not the coefficient but an interval for it whose coverage was measured.
+
+## Correspondence with the article
+
+| This vignette | Clustered article |
+|---|---|
+| Comonotone maximisation | §3 |
+| Finite-support transport algorithm | §3 |
+| Knot structure and tolerances | §3 |
+| Relation to the weighted coefficient | §3 |
+
+## Where to go next
+
+- `vignette("m4-hierarchical-bb-targets")` — how uncertainty is generated once
+  the denominator is settled.
+- `vignette("a3-clustered-polytomous-workflow")` — the applied path.
+
+## References

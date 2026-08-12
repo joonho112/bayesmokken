@@ -1,0 +1,7 @@
+row_id,item_a,item_b,item_c
+A,0,0,NA
+B,1,1,NA
+C,1,NA,0
+D,1,NA,1
+E,0,0,0
+F,1,1,1

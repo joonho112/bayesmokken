@@ -1,0 +1,8 @@
+id,p00,p01,p10,p11,p_i,p_j,covariance,denominator,H,state
+perfect_positive_balanced,0.5,0,0,0.5,0.5,0.5,0.25,0.25,1,positive
+independent_skew,0.30,0.45,0.10,0.15,0.25,0.60,0,0.10,0,positive
+negative_balanced,0,0.5,0.5,0,0.5,0.5,-0.25,0.25,-1,positive
+popularity_tie_moderate,0.375,0.125,0.125,0.375,0.5,0.5,0.125,0.25,0.5,positive
+constant_zero_i,0.5,0.5,0,0,0,0.5,0,0,NA,zero
+constant_one_j,0,0.5,0,0.5,0.5,1,0,0,NA,zero
+near_zero_half_H,0.49999999975,0.49999999925,0.00000000025,0.00000000075,0.000000001,0.5,0.00000000025,0.0000000005,0.5,near_zero

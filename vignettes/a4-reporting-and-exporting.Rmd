@@ -1,0 +1,219 @@
+---
+title: "Reading, reporting, and exporting results"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Reading, reporting, and exporting results}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+source("_setup.R")
+library(bayesmokken)
+```
+
+```{r fits, include = FALSE}
+data(srs)
+fit <- bb_mokken_h(srs, draws = 2000, seed = 1)
+reporting_fit <- bm_cached("srs_50000")
+reporting_interval <- bm_interval(reporting_fit)
+reporting_mc <- bm_mc_diagnostics(reporting_fit)
+reporting_digits <- 3L
+reporting_unit <- 10^(-reporting_digits)
+stopifnot(
+  reporting_interval$total_draws == 50000L,
+  max(reporting_mc$lower_endpoint_mcse,
+      reporting_mc$upper_endpoint_mcse) < 0.5 * reporting_unit
+)
+```
+
+This vignette is about getting results *out* — into a table, into a sentence,
+and into the reproducibility appendix a reader needs to check your work.
+
+## What the fitted object holds
+
+```{r anatomy}
+names(fit)
+```
+
+You rarely need to reach into it directly. Every element has an accessor that
+returns a plain data frame with a fixed set of columns, and those columns are
+pinned by an installed schema that the test suite checks against.
+
+| Accessor | Returns |
+|---|---|
+| `bm_scale_h()` | one row: the scale coefficient |
+| `bm_item_h()` | one row per item |
+| `bm_pair_h()` | one row per item pair |
+| `bm_interval()` | the interval, its method, and its status |
+| `bm_draws()` | the bootstrap draws |
+| `bm_provenance()` | hashes, seed, versions |
+| `bm_diagnostics()` | denominator, regularity, transport, Monte Carlo |
+| `bm_report()` | a formatted table |
+
+```{r accessors}
+bm_scale_h(fit)
+str(bm_draws(fit, what = "scale"), give.head = FALSE)
+```
+
+For the broom ecosystem, `tidy()` and `glance()` are also available:
+
+```{r broom}
+generics::tidy(fit)
+generics::glance(fit)
+```
+
+## Tables
+
+`bm_report()` renders in three forms. A data frame, when you want to keep
+working with it:
+
+```{r report-df}
+bm_report(fit, what = "scale", format = "data.frame")
+```
+
+Markdown, to paste into a Quarto or R Markdown document:
+
+```{r report-md}
+bm_report(fit, what = "scale", format = "markdown")
+```
+
+And LaTeX:
+
+```{r report-tex}
+bm_report(fit, what = "item", format = "latex", digits = 3)
+```
+
+A `bm_report` carries the rendered table alongside the notes and the method
+identifier that belong with it, so that a table cannot travel without its
+provenance. The table itself is in `$table`, and it is an ordinary data frame,
+so it composes with whatever table package you already use:
+
+```{r kable}
+knitr::kable(
+  bm_report(fit, what = "scale", format = "data.frame")$table,
+  caption = "Scalability of the eleven-item SRS."
+)
+```
+
+```{r report-notes}
+bm_report(fit, what = "scale", format = "data.frame")$notes
+```
+
+## Sentences
+
+The hard part of reporting is usually prose, not tables. Three templates, each
+of which says exactly what the object supports.
+
+**Scale level.**
+
+> The eleven-item scale had $H =$ `r fmt_h(reporting_interval$point_estimate, reporting_digits)`,
+> 95% CI `r fmt_ci(reporting_interval, reporting_digits)`. The interval is a repeated-sampling
+> confidence interval obtained by Bayesian bootstrap over respondents, with the
+> width correction of Lee (2026) applied.
+
+That copy-ready sentence uses `r format(reporting_interval$total_draws, big.mark = ",")`
+draws. Endpoint Monte Carlo standard errors are
+`r formatC(reporting_mc$lower_endpoint_mcse, format = "f", digits = 6)` and
+`r formatC(reporting_mc$upper_endpoint_mcse, format = "f", digits = 6)`.
+Both are below half of the `r formatC(reporting_unit, format = "f", digits = reporting_digits)`
+reporting unit, which is the executable precision rule in the setup chunk.
+
+**Item level.**
+
+> Item coefficients ranged from
+> `r fmt_h(min(bm_item_h(fit)$H))` to `r fmt_h(max(bm_item_h(fit)$H))`.
+> Item-level intervals are reported without the width correction, which was
+> validated for the scale coefficient only.
+
+**Two cluster targets.**
+
+```{r cwb, include = FALSE}
+cwb_r <- bm_interval(bm_cached("cwb_respondent"))
+cwb_e <- bm_interval(bm_cached("cwb_equal_cluster"))
+```
+
+> Under respondent weighting $H =$ `r fmt_h(cwb_r$point_estimate)`, 95% CI
+> `r fmt_ci(cwb_r)`; under equal-cluster weighting $H =$
+> `r fmt_h(cwb_e$point_estimate)`, 95% CI `r fmt_ci(cwb_e)`. The two targets
+> are different population quantities and differ here because cluster size is
+> informative. The respondent target corresponds to sampling a pupil
+> uniformly; the equal-cluster target corresponds to sampling a classroom
+> uniformly and then a pupil uniformly within it. We report the respondent
+> target because the former sampling operation is our target population.
+
+That last clause — *why* you chose the target — is the one readers cannot
+reconstruct and the one most often omitted. When informative cluster size is
+plausible, fit both targets, compare them, and state which population operation
+the primary result represents.
+
+### Three sentences not to write
+
+**Do not write:** "There is a 95% probability that $H$ lies in [.104, .162]."
+The interval is a repeated-sampling confidence interval. The Bayesian bootstrap
+is how it is computed, not what it means, and the package deliberately reports
+no probability statement about $H$ at any level.
+
+**Do not write:** "$H$ was significantly above .30." Nothing here is a
+hypothesis test. The landmarks are descriptive conventions from the Mokken
+tradition, and `bm_benchmark()` will give you the arithmetic relation without
+dressing it as a decision.
+
+**Do not write:** "After removing the two weakest items, $H$ rose to .38, 95%
+CI [.31, .45]." The interval does not carry across a change of item set,
+because the estimand is a *declared, fixed* scale. Refitting after item
+selection is a new analysis whose uncertainty does not include the selection
+you just performed.
+
+## The reproducibility appendix
+
+```{r provenance}
+bm_provenance(fit)
+```
+
+`analysis_input_hash` is the full input receipt: it includes the complete
+scored response matrix, included row IDs, item order, normalized point weights,
+declared supports, and clustered labels/target when applicable. The narrower
+`row_hash`, `item_set_hash`, `score_map_hash`, `support_hash`, and
+`cluster_id_hash` fields diagnose selection and schema differences; they are
+not substitutes for a response-value hash.
+
+Report the full hash with the seed, draw count, package version, and method ID.
+Together they identify what was run. Exact stochastic recomputation also
+requires the recorded RNG and execution contract; fresh independent draws are
+compared through Monte Carlo error, not promised to match to the last digit.
+
+## Citation
+
+```{r cite}
+bm_cite(fit)
+```
+
+The two methods have separate sources, and `bm_cite()` returns the ones that
+apply to the fit in hand rather than a blanket list. A BibTeX form is available
+with `format = "bibtex"`.
+
+## The status of item-level intervals
+
+This deserves its own section, because it is the single easiest thing to
+over-report.
+
+```{r item-intervals}
+head(bm_item_h(fit, include_interval = TRUE), 3)
+```
+
+Item-level endpoints are honest uncorrected bootstrap quantiles. What they are
+not is *calibrated*: the width correction was trained and confirmed against the
+scale coefficient, and no equivalent evidence exists for item coefficients. The
+`interval_calibration` column says `uncalibrated` in every row so that the
+distinction survives being copied into a table.
+
+You may report them. Say what they are when you do, and do not compare them
+against the scale interval as though the two carried the same guarantee.
+
+## Where to go next
+
+- `vignette("a5-visualization-cookbook")` — figures for the same results.
+- `vignette("m5-reproducibility-and-evidence")` — what the hashes guarantee and
+  the full validation record.
+- `vignette("m1-foundations")` — what "fixed scale" means for the estimand.

@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 174 200" width="174" height="200">
+  <title>bayesmokken hex sticker, option 2: interval ruler</title>
+  <desc>A point estimate between two nested brackets: the inner thin pair is the
+  uncorrected bootstrap interval, the outer heavy pair the calibrated one.</desc>
+
+  <defs>
+    <clipPath id="hexClip2">
+      <polygon points="87,2 172,51 172,149 87,198 2,149 2,51"/>
+    </clipPath>
+  </defs>
+
+  <!-- body -->
+  <polygon points="87,2 172,51 172,149 87,198 2,149 2,51" fill="#FFFFFF"/>
+
+  <g clip-path="url(#hexClip2)">
+    <!-- the 1/sqrt(n) curve the correction rides on, very quiet -->
+    <path d="M 20 118 C 48 104, 76 97, 154 92"
+          fill="none" stroke="#1F6F70" stroke-width="1.6" opacity="0.18"/>
+
+    <!-- outer brackets: the calibrated interval, wider and heavier -->
+    <g stroke="#1F6F70" stroke-width="6.5" stroke-linecap="square" fill="none">
+      <path d="M 33 52 L 22 52 L 22 110 L 33 110"/>
+      <path d="M 141 52 L 152 52 L 152 110 L 141 110"/>
+    </g>
+
+    <!-- inner brackets: the raw equal-tail interval, thin and set in -->
+    <g stroke="#7FB3B4" stroke-width="3" stroke-linecap="square" fill="none">
+      <path d="M 48 64 L 40 64 L 40 98 L 48 98"/>
+      <path d="M 126 64 L 134 64 L 134 98 L 126 98"/>
+    </g>
+
+    <!-- the estimate -->
+    <line x1="87" y1="56" x2="87" y2="106"
+          stroke="#C6742B" stroke-width="2" opacity="0.55"/>
+    <circle cx="87" cy="81" r="13" fill="#1F6F70"/>
+    <circle cx="87" cy="81" r="5.5" fill="#FFFFFF"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="87" y="150" text-anchor="middle"
+        font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="16" font-weight="600" letter-spacing="0.2"
+        fill="#1F6F70">bayesmokken</text>
+  <text x="87" y="167" text-anchor="middle"
+        font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="8" font-weight="400" letter-spacing="1.4"
+        fill="#9A9A9A">CALIBRATED H</text>
+
+  <!-- border -->
+  <polygon points="87,2 172,51 172,149 87,198 2,149 2,51"
+           fill="none" stroke="#1F6F70" stroke-width="4"/>
+</svg>

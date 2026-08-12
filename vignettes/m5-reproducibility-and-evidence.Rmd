@@ -1,0 +1,270 @@
+---
+title: "Reproducibility, diagnostics, and validation evidence"
+output: rmarkdown::html_vignette
+bibliography: references.bib
+link-citations: true
+vignette: >
+  %\VignetteIndexEntry{Reproducibility, diagnostics, and validation evidence}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+source("_setup.R")
+library(bayesmokken)
+```
+
+```{r fit, include = FALSE}
+data(srs)
+fit <- bb_mokken_h(srs, draws = 2000, seed = 1)
+iv <- bm_interval(fit)
+```
+
+This vignette collects the reasons to believe a number this package produced:
+what makes it recomputable, what would tell you it is unreliable, and what
+evidence stands behind the method. It closes with the limits.
+
+## The RNG contract
+
+Stochastic results are reproducible only if the randomness is pinned. Three
+guarantees hold here.
+
+**A seed is required and recorded.** There is no unseeded path.
+
+```{r seed}
+bm_provenance(fit)[c("seed", "rng_kind", "total_draws")]
+```
+
+**The seed must be an integer.** Version 0.0.0.9001 fixed a defect where a
+fractional seed was silently truncated, so `1.1` and `1L` produced identical
+streams while the documentation promised an integer. It now refuses:
+
+```{r fractional, error = TRUE}
+bb_mokken_h(srs, draws = 200, seed = 1.5)
+```
+
+**Binary numeric draws are batch-invariant.** With a fixed seed, changing the
+binary engine's batch size does not change its pair, item, or scale draws.
+
+**Metamorphic/invariant check — change the batch partition while holding seed
+and requested draws fixed.**
+
+```{r verify-batch}
+a <- bb_mokken_h(srs, draws = 1000, seed = 7, batch_size = 250, warn = FALSE)
+b <- bb_mokken_h(srs, draws = 1000, seed = 7, batch_size = 97,  warn = FALSE)
+
+stopifnot(
+  identical(a$draws$scale, b$draws$scale),
+  identical(a$draws$item, b$draws$item),
+  identical(a$draws$pair, b$draws$pair)
+)
+data.frame(
+  level = c("scale", "item", "pair"),
+  identical_draws = c(
+    identical(a$draws$scale, b$draws$scale),
+    identical(a$draws$item, b$draws$item),
+    identical(a$draws$pair, b$draws$pair)
+  )
+)
+```
+
+The `workers` argument currently records a request but both binary and
+clustered engines execute the serial reference path. It is therefore not a
+speed claim, and objects with different requests are not byte-identical because
+their computation metadata differs:
+
+```{r verify-workers}
+w1 <- bb_mokken_h(srs, draws = 200, seed = 7, workers = 1, warn = FALSE)
+w16 <- bb_mokken_h(srs, draws = 200, seed = 7, workers = 16, warn = FALSE)
+stopifnot(
+  identical(w1$draws, w16$draws),
+  identical(w16$computation$execution, "deterministic_serial_reference"),
+  identical(w16$computation$workers_requested, 16L),
+  !identical(w1, w16)
+)
+w16$computation[c("workers_requested", "execution")]
+```
+
+No draw-index prefix guarantee is claimed for the clustered generator. A real
+parallel backend would require its own worker-count, execution-receipt, and
+clustered-stream tests before the contract could be broadened.
+
+## Hash provenance
+
+Reproducing a number requires reproducing its **input**. The full digest is
+`analysis_input_hash`:
+
+```{r hashes}
+p <- bm_provenance(fit)
+p[c("analysis_input_hash", "row_hash", "item_set_hash",
+    "score_map_hash", "support_hash", "cluster_id_hash")]
+```
+
+It hashes the complete scored response matrix, included row IDs, ordered item
+names, normalized point weights, declared supports, and—when present—complete
+cluster labels and the declared target. A one-cell response mutation therefore
+changes it.
+
+The narrower component hashes remain because they tell you where a mismatch
+began:
+
+| Component hash | Diagnoses |
+|---|---|
+| `row_hash` | which respondents entered, after missing-data filtering |
+| `item_set_hash` | which items, in what order |
+| `score_map_hash` | any recoding applied |
+| `support_hash` | the declared response categories |
+| `cluster_id_hash` | complete cluster membership and labels, when applicable |
+
+A reader who reruns the code and matches `analysis_input_hash` has matched the
+canonical analysis input. The component hashes help diagnose a mismatch but,
+individually or together, are not a response-value digest.
+
+Report the full hash with the seed, draw count, package version, and method ID.
+That record identifies the computation; a fresh stochastic call is expected to
+match exactly only when its RNG and execution contract also match.
+
+## Monte Carlo diagnostics
+
+The interval has two distinct sources of variability, and conflating them is
+the usual mistake. **Sampling** variability is what the interval reports.
+**Simulation** variability is the noise from using finitely many draws, and it
+is a property of your compute budget rather than of your data.
+
+```{r mc}
+bm_mc_diagnostics(fit)
+```
+
+Read the endpoint standard errors against the precision you intend to report.
+Reporting three decimals with simulation noise in the third is reporting noise.
+Two further quantities check the same thing differently: the batch deviation
+compares endpoints across independent batches, and the prefix-half difference
+compares the first half of the draws with the whole.
+
+```{r fig-stability, fig.alt = "Interval endpoints against cumulative draw count, both settling as draws accumulate."}
+bm_plot_mc_stability(fit)
+```
+
+More draws shrink simulation noise. They do not shrink the interval, because
+the interval is not about the simulation.
+
+## Typed failures
+
+Every refusal in this package raises a condition with a class, so failures can
+be handled programmatically rather than by matching message text.
+
+```{r conditions}
+res <- tryCatch(
+  bb_mokken_h(srs, draws = 200, seed = 1, level = 0.90),
+  bm_input_error = function(e) class(e)
+)
+res
+```
+
+```{r guardrails}
+g <- bm_guardrails()
+nrow(g)
+g[1:3, c("situation", "reason")]
+```
+
+All `r nrow(bm_guardrails())` situations are listed with the reason and what to
+do instead. The design principle behind them is worth stating plainly: **where
+the software cannot know the answer, it fails rather than defaulting.**
+`cluster_target` has no default because the two targets are different
+questions. `supports` has no default because the denominator depends on it. The
+calibrated interval refuses below 22 clusters because the correction was never
+confirmed there. In each case a default would have been a scientific choice
+made silently on the user's behalf.
+
+## The validation record
+
+**Binary path.** Four data-generating families, 108,000 replications,
+prespecified rule with undefined intervals counted as misses. The calibrated
+interval covered 94.5%–95.1% at the nominal 95% level, at a cost of under 3% in
+mean length. An influence-function delta-method Wald interval covered
+82.6%–91.8%, and a bias-corrected accelerated construction as little as 71.4%,
+both under a strict regularity screen whose refusals also counted as misses.
+
+**Clustered path.** A fresh 24-cell confirmation crossing 22–80 clusters,
+intraclass correlations of .06–.38, informative-size mechanisms and
+transport-path stress lanes. The calibrated interval covered .974 for both
+targets on the 16-cell regular decision lane, at 75% of the raw width, passing
+all seven prespecified gates. Naive independence bootstrap: .915. Two-level
+delta: .981 at 7% greater length.
+
+In both cases the tuning constant was selected on training conditions,
+evaluated once on held-out conditions, and then confirmed prospectively. The
+constant is frozen, and the coverage claim attaches to that value alone.
+
+### The software's own checks
+
+The two articles report the test suite of the version that produced their
+results — **665 unit tests** (binary article) and **791 expectations across 24
+files** (clustered article), both in package version 0.0.0.9001. This release
+is larger, because the user-facing surface it adds is itself tested:
+
+```{r test-scale, echo = FALSE}
+data.frame(
+  version = c("0.0.0.9001 (the articles' results)", "0.9.0 (this release)"),
+  scale   = c("665 tests / 791 expectations", "2,320 expectations across 42 files")
+)
+```
+
+The two are not in conflict and the later number does not supersede the
+earlier: the articles' figures describe the version that computed the published
+results, which is the version their claims rest on.
+
+What connects the two is the parity gate. It compares eight fixtures field by
+field, at `tolerance = 0`, against a reference produced by 0.0.0.9001, subject
+to the five documented additive/corrected fields named in `NEWS.md`. The
+ordinary gate runner executes G-1 through G-10; G-10 installs the current source
+into an isolated library and deep-compares every cached fit after removing only
+its build date. The external paper-number gate is separate and opt-in with
+`--published`; it is mandatory for a release receipt, not silently included in
+an ordinary development run.
+
+## Limits
+
+Six, stated plainly.
+
+**Item selection is not propagated.** The estimand is a declared, fixed scale.
+If items were chosen by looking at these data, the interval is too narrow by an
+amount not quantified here.
+
+**The corrections are validated within lanes.** The binary correction was
+confirmed for the scale coefficient of binary items; the clustered correction
+for polytomous items in 22–80 clusters. Item- and pair-level intervals carry no
+correction and say so in their `interval_calibration` column.
+
+**Small $G$ is genuinely unsupported.** Below 22 clusters the calibrated
+interval is refused rather than extrapolated. The deterministic coefficient and
+the uncorrected comparator remain, and both are honest about claiming less.
+
+**Non-probability samples.** Everything here concerns repeated sampling from a
+population. If the respondents were not sampled in a way that supports that
+frame, the interval answers a question you may not be asking.
+
+**The intervals are frequentist.** The Bayesian bootstrap is the computational
+device. No posterior interpretation is available, and no probability statement
+about $H$ is computed at any level.
+
+**No verdicts.** The package reports no decision about whether a scale is
+adequate. `bm_benchmark()` gives arithmetic relations to the conventional
+landmarks and stops there, because adequacy depends on the instrument's
+purpose.
+
+## Correspondence with the articles
+
+| This vignette | Articles |
+|---|---|
+| Transparency and provenance | Both, §5 |
+| Simulation evidence | Binary §6, clustered §6 |
+| Limits | Both, §8 |
+
+## Where to go next
+
+- `vignette("m1-foundations")` — the estimands these guarantees attach to.
+- `vignette("a4-reporting-and-exporting")` — putting the provenance into a
+  manuscript.
+
+## References

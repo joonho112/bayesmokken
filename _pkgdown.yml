@@ -1,0 +1,214 @@
+url: https://joonho112.github.io/bayesmokken/
+
+# No `light-switch: true`, deliberately. pkgdown renders dark mode by applying
+# `filter: invert(1) hue-rotate(180deg)` to every figure. The package's figures
+# are verified on white: the accessibility gate measures caption contrast at
+# 5.74:1 and checks that the sequential palette runs L* 92.0 down to 34.9.
+# Inversion reverses that lightness ordering and voids the contrast measurement,
+# and nothing checks the inverted result. Shipping a dark mode whose
+# accessibility properties are unverified would be worse than shipping none.
+template:
+  bootstrap: 5
+  bootswatch: flatly
+  bslib:
+    primary: "#1F6F70"
+    base_font: {google: "Source Sans 3"}
+    heading_font: {google: "Source Sans 3"}
+    code_font: {google: "Source Code Pro"}
+
+home:
+  title: "Calibrated Bayesian-Bootstrap Intervals for Mokken Scalability"
+  description: >
+    Mokken scale analysis reports the scalability coefficient H as a bare point
+    estimate. This package supplies confidence intervals for H whose coverage
+    was checked in large prespecified simulations rather than assumed, for
+    binary scales and for polytomous scales whose respondents are nested in
+    clusters.
+
+authors:
+  JoonHo Lee:
+    href: https://github.com/joonho112
+
+navbar:
+  structure:
+    left:  [intro, reference, articles, news]
+    right: [search, github]
+  components:
+    intro:
+      text: Get started
+      href: articles/a1-getting-started.html
+    articles:
+      text: Vignettes
+      menu:
+      - text: "--- Applied track ---"
+      - text: "a1 · Getting started"
+        href: articles/a1-getting-started.html
+      - text: "a2 · Binary scales: the SRS workflow"
+        href: articles/a2-binary-srs-workflow.html
+      - text: "a3 · Clustered polytomous scales"
+        href: articles/a3-clustered-polytomous-workflow.html
+      - text: "a4 · Reading, reporting, exporting"
+        href: articles/a4-reporting-and-exporting.html
+      - text: "a5 · Visualization cookbook"
+        href: articles/a5-visualization-cookbook.html
+      - text: "--- Methodological track ---"
+      - text: "m1 · Foundations"
+        href: articles/m1-foundations.html
+      - text: "m2 · Bayesian bootstrap and calibration"
+        href: articles/m2-bayesian-bootstrap-calibration.html
+      - text: "m3 · Polytomous transport"
+        href: articles/m3-polytomous-transport.html
+      - text: "m4 · Hierarchical BB and cluster targets"
+        href: articles/m4-hierarchical-bb-targets.html
+      - text: "m5 · Reproducibility and evidence"
+        href: articles/m5-reproducibility-and-evidence.html
+
+articles:
+- title: Applied track
+  navbar: ~
+  desc: >
+    Workflow first. Install, run, read the result, report it, draw it. Formulas
+    are kept to a minimum and derivations are left to the methodological track.
+  contents:
+  - a1-getting-started
+  - a2-binary-srs-workflow
+  - a3-clustered-polytomous-workflow
+  - a4-reporting-and-exporting
+  - a5-visualization-cookbook
+
+- title: Methodological track
+  navbar: ~
+  desc: >
+    The mathematics behind the functions. Every displayed equation is followed
+    by a chunk that recomputes it from the returned object, so the definitions
+    are checked rather than asserted.
+  contents:
+  - m1-foundations
+  - m2-bayesian-bootstrap-calibration
+  - m3-polytomous-transport
+  - m4-hierarchical-bb-targets
+  - m5-reproducibility-and-evidence
+
+reference:
+- title: Estimation
+  desc: >
+    The two entry points. `mokken_h()` computes the coefficient;
+    `bb_mokken_h()` adds the interval. Both take the same declarations.
+  contents:
+  - mokken_h
+  - bb_mokken_h
+  - bayes_mokken_h
+
+- title: Preparing data
+  desc: >
+    Screen a dataset before fitting and build the arguments the entry points
+    require. Reverse keying is reported here, and applied only when you ask.
+  contents:
+  - bm_check_data
+  - bm_supports
+  - bm_score_map
+  - bm_missing_codes
+  - bm_cluster_info
+
+- title: Extracting results
+  desc: >
+    Plain data frames whose columns are fixed by an installed schema and
+    checked against it by the tests. Use these rather than reaching into the
+    fitted object.
+  contents:
+  - bm_scale_h
+  - bm_item_h
+  - bm_pair_h
+  - bm_interval
+  - bm_draws
+  - bm_provenance
+  - tidy.bm_bb_h
+  - as.data.frame.bm_bb_h
+
+- title: Diagnostics
+  desc: >
+    What would tell you a result is unreliable: vanishing denominators,
+    transport knots, and simulation noise in the endpoints.
+  contents:
+  - bm_diagnostics
+  - bm_mc_diagnostics
+  - bm_knot_diagnostics
+  - bm_regularity
+
+- title: Reporting
+  desc: >
+    Manuscript tables, the conventional descriptive landmarks, comparison
+    across fits, the refusal list, and the citation to use.
+  contents:
+  - bm_report
+  - bm_benchmark
+  - bm_compare
+  - bm_guardrails
+  - bm_cite
+
+- title: Visualization
+  desc: >
+    Eight figures, a house theme and colour scales. Every distinction is
+    carried by at least two channels, so nothing is lost in greyscale or to
+    colour-vision deficiency.
+  contents:
+  - bm_plot_scale_h
+  - bm_plot_item_h
+  - bm_plot_pair_h
+  - bm_plot_draws
+  - bm_plot_mc_stability
+  - bm_plot_calibration
+  - bm_plot_margins
+  - bm_plot_clusters
+  - bm_plot_overview
+  - autoplot.bm_bb_h
+  - theme_bayesmokken
+  - scale_colour_bayesmokken
+  - bm_palette
+  - bm_alt_text
+
+- title: Datasets
+  desc: >
+    One real binary scale, one synthetic clustered polytomous dataset, and a
+    teaching generator.
+  contents:
+  - srs
+  - classroom_wb
+  - bm_simulate
+
+- title: Console output
+  desc: >
+    Print and summary methods, and optional cli-decorated formatters. Default
+    printing uses base R only.
+  contents:
+  - print.bm_bb_h
+  - print.bm_empirical_h
+  - print.bm_h_interval
+  - print.bm_data_check
+  - print.bm_cluster_info
+  - print.bm_diagnostic_report
+  - print.bm_benchmark
+  - print.bm_report
+  - summary.bm_bb_h
+  - summary.bm_empirical_h
+  - format_bm_fit_cli
+  - format_bm_interval_cli
+  - format_bm_items_cli
+
+- title: Concepts
+  desc: >
+    Background pages that several functions share: what is being estimated,
+    what the intervals do and do not claim, how the figures are built, and the
+    vocabulary used throughout.
+  contents:
+  - bayesmokken-package
+  - bayesmokken-estimands
+  - bayesmokken-intervals
+  - bayesmokken-plots
+  - bayesmokken-glossary
+  - reexports
+
+footer:
+  structure:
+    left: developed_by
+    right: built_with

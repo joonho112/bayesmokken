@@ -1,0 +1,12 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.DS_Store
+*.tar.gz
+*.Rcheck/
+docs/
+dev/parity/lib/
+inst/doc
+Rplots.pdf
+.Renviron

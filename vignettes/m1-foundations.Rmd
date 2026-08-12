@@ -1,0 +1,277 @@
+---
+title: "Foundations: H as a functional and its estimands"
+output: rmarkdown::html_vignette
+bibliography: references.bib
+link-citations: true
+vignette: >
+  %\VignetteIndexEntry{Foundations: H as a functional and its estimands}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+<!-- Block MathML neither shrinks nor scrolls on its own, so a display
+equation wider than the viewport widens the whole page. Let it scroll in place.
+The pkgdown site gets the same rule from pkgdown/extra.css. -->
+<style>
+math[display="block"] { display: block; max-width: 100%; overflow-x: auto; }
+</style>
+
+```{r setup, include = FALSE}
+source("_setup.R")
+library(bayesmokken)
+```
+
+```{r fit, include = FALSE}
+data(srs)
+emp <- mokken_h(srs, warn = FALSE)
+fit <- bb_mokken_h(srs, draws = 2000, seed = 1)
+```
+
+This vignette defines what the package estimates. Nearby executable chunks are
+labelled by what they actually establish:
+
+- **Independent oracle** — a separate implementation starts from raw inputs.
+- **Metamorphic/invariant check** — a transformation that should preserve a
+  result is exercised.
+- **Executable consistency check/illustration** — returned fields are combined
+  according to the displayed identity, catching documentation or wiring drift
+  without claiming an independent derivation.
+
+The three coefficient checks below are independent oracles: they recompute the
+moments from the raw response matrix and never read a covariance, denominator
+or coefficient back out of the fitted object. The transport and HBB vignettes
+carry the other two oracles.
+
+## Notation
+
+| Symbol | Meaning |
+|---|---|
+| $F$ | the population distribution of responses |
+| $S = \{1, \dots, J\}$ | the **declared** item set, fixed in advance |
+| $Y_i$ | response to item $i$ |
+| $p_i$ | mean of $Y_i$ (for binary items, the proportion endorsing) |
+| $H_{ij}$ | pair scalability coefficient |
+| $H_i$ | item scalability coefficient |
+| $H$ | scale scalability coefficient |
+| $n$ | number of complete-scale respondents |
+| $G$ | number of clusters |
+| $n_g$ | number of respondents in cluster $g$ |
+
+The symbols match the two articles. Vignettes m2 through m5 use them without
+redefinition.
+
+## The three coefficients
+
+The scalability coefficient is a ratio of a covariance to the largest
+covariance those marginals permit [@loevinger1948; @mokken1971]. For a pair,
+
+$$H_{ij} = \frac{\operatorname{Cov}(Y_i, Y_j)}{\operatorname{Cov}^{\max}(Y_i, Y_j)}.$$
+
+**Independent oracle — recompute every pair from the raw response matrix.**
+Nothing below reads a coefficient, covariance or denominator from the fitted
+object; the moments come from the matrix and the binary maximum covariance from
+its closed form, $\operatorname{Cov}^{\max} = \min(p_i, p_j) - p_i p_j$.
+
+```{r verify-pair}
+p <- bm_pair_h(emp)
+
+X <- as.matrix(srs[stats::complete.cases(srs), ])
+mu <- colMeans(X)
+
+oracle <- t(vapply(seq_len(nrow(p)), function(k) {
+  i <- as.character(p$item_i[k])
+  j <- as.character(p$item_j[k])
+  cov_ij <- mean(X[, i] * X[, j]) - mu[[i]] * mu[[j]]
+  max_ij <- min(mu[[i]], mu[[j]]) - mu[[i]] * mu[[j]]
+  c(covariance = cov_ij, max_covariance = max_ij, H = cov_ij / max_ij)
+}, numeric(3)))
+
+stopifnot(
+  max(abs(oracle[, "covariance"]     - p$covariance))     < 1e-12,
+  max(abs(oracle[, "max_covariance"] - p$max_covariance)) < 1e-12,
+  max(abs(oracle[, "H"]              - p$H))              < 1e-12
+)
+data.frame(pairs_checked = nrow(p),
+           max_absolute_difference = max(abs(oracle[, "H"] - p$H)))
+```
+
+For an item and for the scale, the coefficients are ratios of **sums**:
+
+$$H_i = \frac{\sum_{j \neq i} \operatorname{Cov}(Y_i, Y_j)}{\sum_{j \neq i} \operatorname{Cov}^{\max}(Y_i, Y_j)},
+\qquad
+H = \frac{\sum_{i < j} \operatorname{Cov}(Y_i, Y_j)}{\sum_{i < j} \operatorname{Cov}^{\max}(Y_i, Y_j)}.$$
+
+**Independent oracle — aggregate the oracle's own pair moments.** The sums
+below come from the matrix-derived quantities above, not from the fitted
+object's columns, so agreement is a check rather than an identity.
+
+```{r verify-scale}
+stopifnot(all.equal(
+  bm_scale_h(emp)$H,
+  sum(oracle[, "covariance"]) / sum(oracle[, "max_covariance"]),
+  tolerance = 1e-12
+))
+data.frame(package = bm_scale_h(emp)$H,
+           oracle  = sum(oracle[, "covariance"]) / sum(oracle[, "max_covariance"]))
+```
+
+### A ratio of sums is not a mean of ratios
+
+This is the single most common misreading, so it is worth making concrete
+rather than merely stating:
+
+```{r ratio-vs-mean}
+c(ratio_of_sums = sum(p$covariance) / sum(p$max_covariance),
+  mean_of_pair_H = mean(p$H))
+```
+
+The two differ by `r fmt_h(abs(sum(p$covariance)/sum(p$max_covariance) - mean(p$H)), 4)`
+on these data — not a rounding discrepancy but a different quantity. Averaging
+the pair coefficients would weight every pair equally regardless of how much
+covariance it can carry. The ratio of sums lets pairs with more room to
+covary count for more, which is what the coefficient is defined to do.
+
+The same applies at the item level:
+
+**Independent oracle — every item, from the oracle's pair moments.** The
+earlier version of this chunk checked one item against the fitted object's own
+columns. It now aggregates the matrix-derived moments, for all eleven items.
+
+```{r verify-item}
+items <- bm_item_h(emp)
+oracle_item <- vapply(items$item, function(it) {
+  own <- p$item_i == it | p$item_j == it
+  sum(oracle[own, "covariance"]) / sum(oracle[own, "max_covariance"])
+}, numeric(1))
+
+stopifnot(max(abs(oracle_item - items$H)) < 1e-12)
+data.frame(items_checked = length(oracle_item),
+           max_absolute_difference = max(abs(oracle_item - items$H)))
+```
+
+## The estimand is a fixed, declared scale
+
+$S$ is fixed before the data are seen. The package estimates the coefficient
+**of that set**, and its interval covers sampling variation in the responses
+only.
+
+It does **not** propagate uncertainty from having chosen the items. If you
+select items by inspecting these data — dropping the two weakest, say — the
+selection is itself an estimated quantity, and an interval that ignores it is
+too narrow by an amount this package does not attempt to quantify. Automatic
+item selection procedures exist in the wider literature
+[@van_der_ark_mokken_2008]; nothing here performs one, and no interval reported
+here should be attached to a scale that was chosen by looking.
+
+The practical consequence is a rule you can apply: **an interval belongs to the
+item set that was declared when it was computed.** `bm_compare()` enforces this
+by refusing to align fits whose item sets differ unless you pass
+`allow_different = TRUE`.
+
+```{r fixed-scale}
+bm_provenance(fit)$item_set_hash
+```
+
+That hash is what makes the declaration checkable after the fact.
+
+## The row target: complete-scale respondents
+
+The second half of the estimand is *which respondents*.
+
+```{r rows}
+c(rows_in_data = nrow(srs), complete_scale = bm_interval(fit)$n_complete)
+```
+
+Under the default `missing = "complete_scale"`, a respondent enters only if
+they answered every item in $S$. This is part of the estimand, not a
+preprocessing convenience: the coefficient is defined over the population of
+respondents who would answer the whole scale, and a different missing-data rule
+defines a different population.
+
+`bm_check_data()` reports the count before you fit, and `n_complete` records it
+in the result. For clustered fits, `n_complete` counts **respondents**;
+the cluster count is a separate field.
+
+```{r clustered-fields}
+cl <- bm_interval(bm_cached("cwb_respondent"))
+c(respondents = cl$n_complete, clusters = cl$cluster_count,
+  calibration_input = cl$calibration_n)
+```
+
+## Weights
+
+`weights` supplies a fixed, known weight per respondent — a survey design
+weight, typically. Weights are normalised internally, so only their relative
+sizes matter, and they enter the covariance and its maximum alike:
+
+```{r weights}
+w <- rep(c(1, 2), length.out = nrow(srs))
+h_w <- mokken_h(srs, weights = w, warn = FALSE)
+c(unweighted = bm_scale_h(emp)$H, weighted = bm_scale_h(h_w)$H)
+```
+
+These are fixed weights, not the random weights of the Bayesian bootstrap.
+`vignette("m2-bayesian-bootstrap-calibration")` covers the latter, and
+`vignette("m4-hierarchical-bb-targets")` covers the cluster weighting that
+defines the two population targets.
+
+## Boundaries: when the denominator vanishes
+
+$H$ is a ratio, so it is undefined when its denominator is zero, and unstable
+when the denominator is merely very small. Two items that are nearly constant,
+or whose marginals leave almost no room to covary, produce exactly that.
+
+The package does not hide these cases. Every level of the result carries a
+`denominator_status`:
+
+```{r denominator}
+table(bm_pair_h(emp)$denominator_status)
+bm_scale_h(emp)$denominator_status
+```
+
+Two tolerances govern the handling. `zero_tol` sets the point below which a
+denominator counts as zero rather than small. `eta` sets the point below which
+a pair is flagged as near-boundary while still being computed. Both are
+arguments with documented defaults, and both are recorded in the result, so a
+reader can tell what was treated how.
+
+```{r tolerances}
+emp$tolerances
+```
+
+Near-boundary pairs are **reported, not dropped**. Dropping them would change
+the estimand — the sums in the numerator and denominator would run over a
+different set of pairs — without saying so in the output. Flagging them leaves
+the choice with you.
+
+Within a bootstrap, a draw whose denominator vanishes yields an undefined
+coefficient. Those draws are counted rather than quietly discarded:
+
+```{r defined-draws}
+iv <- bm_interval(fit)
+c(defined = iv$defined_draws, total = iv$total_draws,
+  minimum_required = iv$minimum_defined_draws)
+```
+
+If too few draws are defined the interval fails rather than being computed from
+whatever survived. `vignette("m2-bayesian-bootstrap-calibration")` gives the
+minima.
+
+## Correspondence with the articles
+
+| This vignette | Article |
+|---|---|
+| Coefficient definitions | Binary article §3 |
+| Fixed-scale estimand | Binary article §3 |
+| Complete-scale row target | Binary article §3 |
+| Denominator boundaries | Binary article §3, §5 |
+| Two cluster targets | Clustered article §3 |
+
+## Where to go next
+
+- `vignette("m2-bayesian-bootstrap-calibration")` — how the interval is built.
+- `vignette("m3-polytomous-transport")` — the polytomous denominator.
+- `vignette("a1-getting-started")` — the applied track, if you arrived here
+  first.
+
+## References

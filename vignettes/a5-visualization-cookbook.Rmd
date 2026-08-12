@@ -1,0 +1,206 @@
+---
+title: "Visualization cookbook"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Visualization cookbook}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+source("_setup.R")
+library(bayesmokken)
+library(ggplot2)
+```
+
+```{r fits, include = FALSE}
+data(srs)
+data(classroom_wb)
+items <- paste0("wb", 1:6)
+fit <- bb_mokken_h(srs, draws = 2000, seed = 1)
+cfit <- bm_cached("cwb_respondent")
+```
+
+Eight figures. Each answers one question, each returns a `ggplot`, and each can
+be overridden with anything ggplot2 offers.
+
+## The gallery
+
+### 1. Where does the scale sit?
+
+```{r p1, fig.alt = "Scale coefficient shown as a point with its confidence interval against the conventional landmarks at 0.3, 0.4 and 0.5."}
+p_scale <- bm_plot_scale_h(fit)
+p_scale
+```
+
+The landmarks are drawn as reference lines. They are conventions of the
+tradition, not thresholds the software applies.
+
+> **Minimum interpretation contract.** The interval is a repeated-sampling CI
+> for a fixed declared item set. Its calibration applies to the scale
+> coefficient only; item and pair intervals are uncalibrated. The landmark
+> lines are descriptive guides, not tests.
+
+### 2. What are the item-level H values in the declared scale?
+
+```{r p2, fig.alt = "Item coefficients for the eleven SRS items, sorted in ascending order, each shown as a point on a common axis."}
+bm_plot_item_h(fit, sort = TRUE)
+```
+
+Add `show_interval = TRUE` for item-level endpoints — uncorrected, and labelled
+as such.
+
+### 3. What are the pair-level H values in the declared scale?
+
+```{r p3, fig.alt = "Lower-triangular heatmap of pair coefficients for the eleven items, with darker cells indicating higher pair scalability."}
+bm_plot_pair_h(fit)
+```
+
+A triangle, not a square: each unordered pair appears once. Use
+`layout = "scatter"` when the item count makes cells too small to read.
+
+> **Inspection, not selection.** These two figures describe the fixed item set
+> already declared in the fit. They do not select items or justify carrying the
+> old scale interval to a reduced set. Dropping an item and refitting creates a
+> new estimand and a new analysis.
+
+### 4. Where did the interval come from?
+
+```{r p4, fig.alt = "Bootstrap distribution of the scale coefficient with uncorrected and corrected endpoints marked beneath it."}
+bm_plot_draws(fit)
+```
+
+### 5. Are there enough draws?
+
+```{r p5, fig.alt = "Interval endpoints plotted against cumulative draw count, both flattening as draws accumulate."}
+bm_plot_mc_stability(fit)
+```
+
+### 6. What does the correction do?
+
+```{r p6, fig.alt = "Width multiplier for the binary correction plotted against sample size, falling toward one as the sample grows."}
+bm_plot_calibration(mode = "binary")
+```
+
+This one runs with no data at all, which makes it useful for explaining the
+method before an analysis exists.
+
+### 7. How are the items distributed?
+
+```{r p7, fig.alt = "Proportion endorsing each of the eleven SRS items, plotted as points on a common axis."}
+bm_plot_margins(fit)
+```
+
+### 8. What do the clusters look like?
+
+```{r p8, fig.alt = "Classrooms ordered by size showing the weight each population target assigns, with respondent weighting rising with size and equal-cluster weighting flat."}
+bm_plot_clusters(classroom_wb$class_id, show_targets = TRUE)
+```
+
+## Customising
+
+Every figure is a plain `ggplot` object, so nothing is closed to you:
+
+```{r custom, fig.alt = "The item coefficient figure with a different theme, custom axis labels and a title applied on top of the package default."}
+bm_plot_item_h(fit, sort = TRUE) +
+  labs(title = "Scientific Reasoning Scale",
+       subtitle = "Item scalability, ascending") +
+  theme_minimal(base_size = 11)
+```
+
+Layer order is the usual ggplot2 rule: what you add last wins.
+
+### The house theme on your own figures
+
+```{r theme, fig.alt = "A line-and-point plot of a random walk drawn with the package theme applied, showing its typography and grid treatment."}
+set.seed(42)
+ggplot(data.frame(x = 1:20, y = cumsum(rnorm(20))), aes(x, y)) +
+  geom_line(linewidth = 0.7) +
+  geom_point(size = 2) +
+  labs(title = "theme_bayesmokken() on an unrelated figure",
+       x = "index", y = "value") +
+  theme_bayesmokken()
+```
+
+```{r seed-note, include = FALSE}
+# The chunk above is stochastic; the vignette-wide seed in _setup.R fixes it.
+```
+
+### Colours
+
+```{r palette}
+bm_palette(4)
+```
+
+```{r scales, fig.alt = "Four groups of points drawn in the package categorical palette, distinguished by both colour and plotting symbol."}
+set.seed(43)
+d <- data.frame(x = rep(1:10, 4), y = rnorm(40) + rep(1:4, each = 10),
+                g = factor(rep(c("a", "b", "c", "d"), each = 10)))
+ggplot(d, aes(x, y, colour = g, shape = g)) +
+  geom_point(size = 2.4) +
+  scale_colour_bayesmokken() +
+  theme_bayesmokken()
+```
+
+Note `shape = g` alongside `colour = g`. Every distinction in this package's
+figures is carried by at least two channels, so nothing is lost in greyscale or
+to a reader with colour-vision deficiency. When you extend a figure, keep that
+property.
+
+## Panels
+
+```{r overview, fig.height = 7, fig.alt = "A four-panel overview combining the scale coefficient, item coefficients, the bootstrap distribution and Monte Carlo stability into one figure."}
+bm_plot_overview(fit)
+```
+
+With **patchwork** installed you can compose your own arrangements:
+
+```{r patchwork, eval = has_patchwork, fig.height = 6, fig.alt = "Two package figures stacked vertically: item coefficients above, bootstrap distribution below."}
+library(patchwork)
+bm_plot_item_h(fit, sort = TRUE) / bm_plot_draws(fit)
+```
+
+## Saving for publication
+
+```{r save, eval = FALSE}
+p <- bm_plot_scale_h(fit)
+
+# Vector, for a manuscript
+ggsave("scale-h.pdf", p, width = 7, height = 4.4, device = cairo_pdf)
+
+# Raster, when the venue insists
+ggsave("scale-h.png", p, width = 7, height = 4.4, dpi = 600)
+```
+
+Prefer vector formats. The figures are line-and-point work, so they stay sharp
+at any size and cost less than a raster at the same quality.
+
+Keep the aspect ratio near the default. The dimensions were chosen so that item
+labels stay horizontal and legible; compressing the width forces rotation.
+
+## Accessibility
+
+Two things travel with a figure, and only one of them is drawn.
+
+**Redundant encoding.** Colour is never the only signal. Where a figure
+distinguishes groups it also varies shape or linetype, and where it uses a
+sequential scale it is one that survives conversion to greyscale.
+
+**Alternative text.** Every figure in this package's documentation carries a
+`fig.alt`, and a build check fails when one is missing. `bm_alt_text()`
+proposes a starting point from the plot object:
+
+```{r alt}
+bm_alt_text(p_scale)
+```
+
+Treat it as a draft. Good alternative text states the exact displayed result
+and the role of its guides, for example: “$H=0.130$, 95% CI [0.104, 0.162],
+with descriptive reference guides at 0.3, 0.4 and 0.5.” It does not turn the
+interval's location relative to a guide into a test or verdict.
+
+## Where to go next
+
+- `vignette("a4-reporting-and-exporting")` — tables and sentences to go with
+  these figures.
+- `vignette("m1-foundations")` — what the quantities in them mean.

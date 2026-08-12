@@ -1,0 +1,379 @@
+# =============================================================================
+# Executable extraction data-frame schemas  (Phase 2 / Steps 2.1-2.2)
+#
+# This file is read by tests/testthat/test-extract.R. The tests execute every
+# declared object mode, then assert exact column order, base R column classes,
+# mode-specific states, and boundary NA/count relationships.
+#
+# Plot and printer code does not load this YAML. Their use of extractor columns
+# is checked through consumer tests instead of claiming a runtime dependency.
+#
+# Rules
+#   * `columns` is ordered.
+#   * `type` is an exact base R class: numeric, integer, or character.
+#   * `when` names feature tags required for a conditional column.
+#   * `supported_modes` must name entries in the top-level `modes` map.
+#   * `mode_contracts` and `relations` are executed by the schema test helper.
+# =============================================================================
+
+version: bayesmokken-df-schemas-v2
+
+modes:
+  binary_bb:
+    object_class: bm_bb_h
+    item_type: binary
+    clustered: false
+    interval: available
+    draws: available
+    tags: [binary, bb]
+  clustered_bb:
+    object_class: bm_bb_h
+    item_type: ordinal
+    clustered: true
+    interval: available
+    draws: available
+    tags: [ordinal, clustered, bb]
+  deterministic_binary:
+    object_class: bm_empirical_h
+    item_type: binary
+    clustered: false
+    interval: unavailable
+    draws: unavailable
+    tags: [binary, deterministic]
+  deterministic_clustered:
+    object_class: bm_empirical_h
+    item_type: ordinal
+    clustered: true
+    interval: unavailable
+    draws: unavailable
+    tags: [ordinal, clustered, deterministic]
+  failure_boundary:
+    object_class: bm_bb_h
+    item_type: binary
+    clustered: false
+    interval: available
+    draws: available
+    tags: [binary, bb, failure, boundary]
+
+schemas:
+
+  # ---------------------------------------------------------------------------
+  bm_scale_h:
+    description: >
+      One row. Interval columns are retained with typed NA values for a
+      deterministic fit. `interval_status` describes only the typed interval;
+      denominator state is always carried separately.
+    rows: exactly_one
+    supported_modes: [binary_bb, clustered_bb, deterministic_binary,
+                      deterministic_clustered, failure_boundary]
+    columns:
+      - {name: "H",                  type: numeric,   desc: "scale coefficient H(F); may be NA at a denominator boundary"}
+      - {name: "lower",              type: numeric,   desc: "reported lower endpoint; NA when unavailable or undefined"}
+      - {name: "upper",              type: numeric,   desc: "reported upper endpoint; NA when unavailable or undefined"}
+      - {name: "level",              type: numeric,   desc: "confidence level; NA for deterministic fits"}
+      - {name: "raw_lower",          type: numeric,   desc: "uncorrected lower endpoint; NA when unavailable or undefined"}
+      - {name: "raw_upper",          type: numeric,   desc: "uncorrected upper endpoint; NA when unavailable or undefined"}
+      - {name: "width_multiplier",   type: numeric,   desc: "calibration multiplier; NA for deterministic fits"}
+      - {name: "method_id",          type: character, desc: "frozen method identifier; NA for deterministic fits"}
+      - {name: "interval_status",    type: character, desc: "typed interval status; NA for deterministic fits"}
+      - {name: "denominator_status", type: character, desc: "positive | zero | near_zero"}
+      - {name: "n",                  type: integer,   desc: "complete-scale respondents"}
+      - {name: "n_items",            type: integer,   desc: "items in the fixed scale"}
+      - {name: "n_clusters",         type: integer,   desc: "complete-scale clusters; NA when not clustered"}
+      - {name: "cluster_target",     type: character, desc: "respondent | equal_cluster; NA when not clustered"}
+    mode_contracts:
+      binary_bb:
+        required_non_missing: [H, lower, upper, level, raw_lower, raw_upper,
+                               width_multiplier, method_id, interval_status,
+                               denominator_status, "n", n_items]
+        required_na: [n_clusters, cluster_target]
+        allowed_values:
+          interval_status: [OK, OK_WITH_UNDEFINED_DRAWS,
+                            INSUFFICIENT_DEFINED_BB_DRAWS]
+      clustered_bb:
+        required_non_missing: [H, lower, upper, level, raw_lower, raw_upper,
+                               width_multiplier, method_id, interval_status,
+                               denominator_status, "n", n_items, n_clusters,
+                               cluster_target]
+        allowed_values:
+          cluster_target: [respondent, equal_cluster]
+          interval_status: [OK, OK_WITH_UNDEFINED_DRAWS,
+                            INSUFFICIENT_DEFINED_BB_DRAWS]
+      deterministic_binary:
+        required_non_missing: [H, denominator_status, "n", n_items]
+        required_na: [lower, upper, level, raw_lower, raw_upper,
+                      width_multiplier, method_id, interval_status,
+                      n_clusters, cluster_target]
+      deterministic_clustered:
+        required_non_missing: [H, denominator_status, "n", n_items,
+                               n_clusters, cluster_target]
+        required_na: [lower, upper, level, raw_lower, raw_upper,
+                      width_multiplier, method_id, interval_status]
+        allowed_values:
+          cluster_target: [respondent, equal_cluster]
+      failure_boundary:
+        required_non_missing: [level, width_multiplier, method_id,
+                               interval_status, denominator_status, "n", n_items]
+        required_na: [H, lower, upper, raw_lower, raw_upper,
+                      n_clusters, cluster_target]
+        allowed_values:
+          interval_status: [UNDEFINED_POINT_ESTIMATE]
+          denominator_status: [zero, near_zero]
+
+  # ---------------------------------------------------------------------------
+  bm_item_h:
+    description: >
+      One row per item, sorted by H and then item name. Draw summaries are
+      opt-in and are raw equal-tail, uncalibrated summaries.
+    rows: one_per_item
+    supported_modes: [binary_bb, clustered_bb, deterministic_binary,
+                      deterministic_clustered, failure_boundary]
+    columns:
+      - {name: "item",                 type: character, desc: "item name"}
+      - {name: "H",                    type: numeric,   desc: "item coefficient H_i"}
+      - {name: "numerator",            type: numeric,   desc: "sum of pair covariances"}
+      - {name: "denominator",          type: numeric,   desc: "sum of pair maximum covariances"}
+      - {name: "denominator_status",   type: character, desc: "positive | zero | near_zero"}
+      - {name: "bb_mean",              type: numeric,   desc: "mean of finite item draws", when: interval_columns}
+      - {name: "bb_lower",             type: numeric,   desc: "type-8 2.5% quantile, uncalibrated", when: interval_columns}
+      - {name: "bb_upper",             type: numeric,   desc: "type-8 97.5% quantile, uncalibrated", when: interval_columns}
+      - {name: "defined_draws",        type: integer,   desc: "finite draws for this item", when: interval_columns}
+      - {name: "interval_calibration", type: character, desc: "literal 'uncalibrated'", when: interval_columns}
+    relations:
+      - kind: zero_count_means_na
+        when: interval_columns
+        count: defined_draws
+        values: [bb_mean, bb_lower, bb_upper]
+
+  # ---------------------------------------------------------------------------
+  bm_pair_h:
+    description: >
+      One row per unordered item pair in empirical-table order. Draw summaries
+      are opt-in. Their integer count makes every boundary NA interpretable.
+    rows: choose_n_items_2
+    supported_modes: [binary_bb, clustered_bb, deterministic_binary,
+                      deterministic_clustered, failure_boundary]
+    columns:
+      - {name: "item_i",               type: character, desc: "first item"}
+      - {name: "item_j",               type: character, desc: "second item"}
+      - {name: "H",                    type: numeric,   desc: "pair coefficient H_ij"}
+      - {name: "covariance",           type: numeric,   desc: "weighted pair covariance"}
+      - {name: "max_covariance",       type: numeric,   desc: "comonotone maximum covariance"}
+      - {name: "denominator_status",   type: character, desc: "positive | zero | near_zero"}
+      - {name: "bb_mean",              type: numeric,   desc: "mean of finite pair draws", when: interval_columns}
+      - {name: "bb_lower",             type: numeric,   desc: "type-8 2.5% quantile, uncalibrated", when: interval_columns}
+      - {name: "bb_upper",             type: numeric,   desc: "type-8 97.5% quantile, uncalibrated", when: interval_columns}
+      - {name: "defined_draws",        type: integer,   desc: "finite draws for this pair", when: interval_columns}
+      - {name: "interval_calibration", type: character, desc: "literal 'uncalibrated'", when: interval_columns}
+    relations:
+      - kind: zero_count_means_na
+        when: interval_columns
+        count: defined_draws
+        values: [bb_mean, bb_lower, bb_upper]
+
+  # ---------------------------------------------------------------------------
+  bm_interval:
+    description: >
+      One row containing the union of scalar typed-interval fields. Binary and
+      boundary objects use the 21 common fields. Clustered objects add ten
+      declared calibration-scope fields.
+    rows: exactly_one
+    supported_modes: [binary_bb, clustered_bb, failure_boundary]
+    columns:
+      - {name: "method_id",                      type: character}
+      - {name: "base_method_id",                 type: character}
+      - {name: "status",                         type: character}
+      - {name: "level",                          type: numeric}
+      - {name: "point_estimate",                 type: numeric}
+      - {name: "lower",                          type: numeric}
+      - {name: "upper",                          type: numeric}
+      - {name: "raw_lower",                      type: numeric}
+      - {name: "raw_upper",                      type: numeric}
+      - {name: "midpoint",                       type: numeric}
+      - {name: "gamma",                          type: numeric}
+      - {name: "width_multiplier",               type: numeric}
+      - {name: "n_complete",                     type: integer}
+      - {name: "defined_draws",                  type: integer}
+      - {name: "total_draws",                    type: integer}
+      - {name: "minimum_defined_draws",          type: integer}
+      - {name: "quantile_type",                  type: integer}
+      - {name: "endpoint_clipping",              type: character}
+      - {name: "per_replication_method_cascade", type: character}
+      - {name: "draw_filter_policy",             type: character}
+      - {name: "interpretation",                 type: character}
+      - {name: "cluster_count",                  type: integer,   when: clustered}
+      - {name: "cluster_target",                 type: character, when: clustered}
+      - {name: "calibration_n",                  type: integer,   when: clustered}
+      - {name: "calibration_unit",               type: character, when: clustered}
+      - {name: "validation_status",              type: character, when: clustered}
+      - {name: "validation_scope",               type: character, when: clustered}
+      - {name: "validated_cluster_min",          type: integer,   when: clustered}
+      - {name: "validated_cluster_max",          type: integer,   when: clustered}
+      - {name: "calibration_rate",               type: character, when: clustered}
+      - {name: "minimum_defined_fraction",       type: numeric,   when: clustered}
+    mode_contracts:
+      binary_bb:
+        allowed_values:
+          status: [OK, OK_WITH_UNDEFINED_DRAWS,
+                   INSUFFICIENT_DEFINED_BB_DRAWS]
+      clustered_bb:
+        required_non_missing: [cluster_count, cluster_target, calibration_n,
+                               calibration_unit, validation_status,
+                               validation_scope, validated_cluster_min,
+                               validated_cluster_max, calibration_rate,
+                               minimum_defined_fraction]
+        allowed_values:
+          validation_status: [CONFIRMED_CLUSTER_COUNT,
+                              EXTRAPOLATED_CLUSTER_COUNT,
+                              NOT_APPLICABLE_EQUAL_TAIL]
+      failure_boundary:
+        required_na: [point_estimate, lower, upper, raw_lower, raw_upper,
+                      midpoint]
+        allowed_values:
+          status: [UNDEFINED_POINT_ESTIMATE]
+    relations:
+      - kind: zero_count_means_na
+        count: defined_draws
+        values: [lower, upper, raw_lower, raw_upper]
+
+  # ---------------------------------------------------------------------------
+  bm_draws_long:
+    description: >
+      Long-format draws. Pair rows add explicit coordinates. `target` remains
+      an opaque compatibility key and is never a display label to parse.
+    rows: n_draws_times_n_targets
+    supported_modes: [binary_bb, clustered_bb, failure_boundary]
+    columns:
+      - {name: "draw_id", type: integer,   desc: "1-based draw index"}
+      - {name: "level",   type: character, desc: "scale | item | pair"}
+      - {name: "target",  type: character, desc: "opaque identity field"}
+      - {name: "item_i",  type: character, desc: "first pair item", when: pair}
+      - {name: "item_j",  type: character, desc: "second pair item", when: pair}
+      - {name: "value",   type: numeric,   desc: "draw value; NA when undefined"}
+
+  # ---------------------------------------------------------------------------
+  bm_pair_draw_summary:
+    description: >
+      One row per pair-draw column. The first nine columns are the frozen v0
+      summary contract. Pair coordinates are additive; `variable` is opaque.
+    rows: one_per_pair
+    supported_modes: [binary_bb, clustered_bb, failure_boundary]
+    columns:
+      - {name: "variable",         type: character, desc: "opaque collision-safe pair key"}
+      - {name: "mean",             type: numeric}
+      - {name: "median",           type: numeric}
+      - {name: "sd",               type: numeric}
+      - {name: "q025",             type: numeric}
+      - {name: "q975",             type: numeric}
+      - {name: "defined_draws",    type: integer}
+      - {name: "total_draws",      type: integer}
+      - {name: "defined_fraction", type: numeric}
+      - {name: "item_i",           type: character}
+      - {name: "item_j",           type: character}
+    relations:
+      - kind: zero_count_means_na
+        count: defined_draws
+        values: [mean, median, sd, q025, q975]
+
+  # ---------------------------------------------------------------------------
+  bm_provenance:
+    description: One row of reproducibility evidence.
+    rows: exactly_one
+    supported_modes: [binary_bb, clustered_bb, deterministic_binary,
+                      deterministic_clustered, failure_boundary]
+    columns:
+      - {name: "package_version",  type: character}
+      - {name: "r_version",        type: character}
+      - {name: "method_id",        type: character}
+      - {name: "estimand_version", type: character}
+      - {name: "item_type",        type: character}
+      - {name: "cluster_target",   type: character}
+      - {name: "weight_law",       type: character}
+      - {name: "seed",             type: integer}
+      - {name: "rng_kind",         type: character}
+      - {name: "total_draws",      type: integer}
+      - {name: "defined_draws",    type: integer}
+      - {name: "n_total",          type: integer}
+      - {name: "n_complete",       type: integer}
+      - {name: "n_excluded",       type: integer}
+      - {name: "analysis_input_hash", type: character}
+      - {name: "row_hash",         type: character}
+      - {name: "item_set_hash",    type: character}
+      - {name: "score_map_hash",   type: character}
+      - {name: "support_hash",     type: character}
+      - {name: "cluster_id_hash",  type: character}
+    mode_contracts:
+      binary_bb:
+        required_non_missing: [analysis_input_hash]
+        required_na: [cluster_target, support_hash, cluster_id_hash]
+        allowed_values:
+          item_type: [binary]
+          weight_law: [iid_respondent]
+      clustered_bb:
+        required_non_missing: [analysis_input_hash, cluster_target, weight_law, support_hash,
+                               cluster_id_hash]
+        allowed_values:
+          item_type: [ordinal]
+          weight_law: [hierarchical_cluster]
+      deterministic_binary:
+        required_non_missing: [analysis_input_hash]
+        required_na: [method_id, cluster_target, weight_law, seed, rng_kind,
+                      total_draws, defined_draws, support_hash, cluster_id_hash]
+        allowed_values:
+          item_type: [binary]
+      deterministic_clustered:
+        required_non_missing: [analysis_input_hash, cluster_target, weight_law, support_hash,
+                               cluster_id_hash]
+        required_na: [method_id, seed, rng_kind, total_draws, defined_draws]
+        allowed_values:
+          item_type: [ordinal]
+          weight_law: [hierarchical_cluster]
+      failure_boundary:
+        required_non_missing: [analysis_input_hash]
+        required_na: [cluster_target, support_hash, cluster_id_hash]
+        allowed_values:
+          item_type: [binary]
+          weight_law: [iid_respondent]
+
+  # ---------------------------------------------------------------------------
+  bm_benchmark:
+    description: >
+      Point-estimate arithmetic relative to conventional Mokken landmarks.
+      No interval classification, verdict, or hypothesis-test column is
+      permitted. Undefined H retains numeric NA and a character state.
+    rows: one_per_benchmark
+    supported_modes: [binary_bb, clustered_bb, deterministic_binary,
+                      deterministic_clustered, failure_boundary]
+    columns:
+      - {name: "benchmark",      type: numeric}
+      - {name: "H",              type: numeric}
+      - {name: "difference",     type: numeric,   desc: "H - benchmark"}
+      - {name: "point_relation", type: character, desc: "below | at | above | undefined"}
+      - {name: "note",           type: character, desc: "complete neutral arithmetic description"}
+
+  # ---------------------------------------------------------------------------
+  bm_cluster_summary:
+    description: Cluster structure used by bm_cluster_info().
+    rows: one_per_cluster
+    supported_modes: [clustered_bb, deterministic_clustered]
+    columns:
+      - {name: "cluster",           type: character}
+      - {name: "size",              type: integer}
+      - {name: "weight_respondent", type: numeric}
+      - {name: "weight_equal",      type: numeric}
+      - {name: "mean_total_score",  type: numeric}
+
+literals:
+  uncalibrated_label: uncalibrated
+  uncalibrated_note: >
+    Item- and pair-level intervals are raw equal-tail Bayesian-bootstrap
+    quantiles. The width calibration was validated for the scale coefficient
+    only, so these are not calibrated and should not be read as having the same
+    standing as the scale interval.
+  interpretation_note: >
+    Bayesian-bootstrap confidence interval for repeated-sampling uncertainty.
+  benchmark_note: >
+    Conventional descriptive landmarks from the Mokken tradition, not
+    hypothesis tests or decision rules. Each row reports only the point
+    estimate minus the landmark and a neutral arithmetic relation.
+  denominator_levels: [positive, near_zero, zero]

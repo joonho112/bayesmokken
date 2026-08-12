@@ -1,0 +1,51 @@
+citHeader(
+  "To cite bayesmokken in publications, cite the software and the article ",
+  "that describes the method you used. The binary fixed-scale interval is ",
+  "described in the first article; the clustered polytomous interval is ",
+  "described in the second."
+)
+
+bibentry(
+  bibtype  = "Manual",
+  title    = "bayesmokken: Calibrated Bayesian-Bootstrap Intervals for Mokken Scalability",
+  author   = person("JoonHo", "Lee"),
+  year     = "2026",
+  note     = "R package version 0.9.0",
+  url      = "https://github.com/joonho112/bayesmokken"
+)
+
+## NOTE (maintainer): update year, journal, volume, pages, and doi when each
+## article is accepted. Until then both entries are labelled as manuscripts
+## under review, which is what they are.
+
+bibentry(
+  bibtype  = "Unpublished",
+  key      = "lee2026binary",
+  title    = paste(
+    "Calibrated Bayesian bootstrap confidence intervals for the",
+    "fixed binary Mokken scalability coefficient"
+  ),
+  author   = person("JoonHo", "Lee"),
+  year     = "2026",
+  note     = "Manuscript under review",
+  textVersion = paste(
+    "Lee, J. (2026). Calibrated Bayesian bootstrap confidence intervals for",
+    "the fixed binary Mokken scalability coefficient. Manuscript under review."
+  )
+)
+
+bibentry(
+  bibtype  = "Unpublished",
+  key      = "lee2026clustered",
+  title    = paste(
+    "Cluster-aware confidence intervals for the weighted polytomous",
+    "Mokken scalability coefficient"
+  ),
+  author   = person("JoonHo", "Lee"),
+  year     = "2026",
+  note     = "Manuscript under review",
+  textVersion = paste(
+    "Lee, J. (2026). Cluster-aware confidence intervals for the weighted",
+    "polytomous Mokken scalability coefficient. Manuscript under review."
+  )
+)

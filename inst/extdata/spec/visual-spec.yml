@@ -1,0 +1,263 @@
+# =============================================================================
+# Figure review contract  (Phase 4 / Steps 4.1 and 4.4)
+#
+# This is a review contract consumed by tests/testthat/test-visual-contract.R.
+# Runtime plot functions do NOT read this file: labels, captions, alternative
+# text and geometry are implemented in R/plots-*.R.  The test enumerates every
+# exported bm_plot_* function, requires one card and every declared mode, and
+# compares this contract with ggplot layers and user-facing text on real fits.
+#
+# The prose assertions remain reviewer-readable summaries. The executable
+# checks live in that test file; changing prose here alone cannot change plot
+# behaviour or make a failing relationship pass.
+# =============================================================================
+
+version: bayesmokken-visual-review-contract-v2
+review_contract:
+  consumed_by: tests/testthat/test-visual-contract.R
+  runtime_source: R/plots-*.R
+  required_figure_fields: [question, modes, geoms, caption, alt, assertions]
+
+# -----------------------------------------------------------------------------
+# Shared visual grammar
+# -----------------------------------------------------------------------------
+grammar:
+  theme: theme_bayesmokken
+  palette_source: grDevices::hcl.colors    # no extra hard dependency
+  sort_method: radix                       # locale-independent ordering
+  math_labels: plotmath                    # ASCII source, no unicode glyphs
+  returns: a ggplot object; the function renders nothing itself
+
+  # Colour is never the only carrier of a distinction.
+  status_encoding:
+    positive:  {colour: primary,    shape: 16, linetype: solid,  label: null}
+    near_zero: {colour: warn,       shape: 21, linetype: solid,  label: "near-zero denominator"}
+    zero:      {colour: muted,      shape: 4,  linetype: solid,  label: "zero denominator"}
+
+  calibration_encoding:
+    calibrated:
+      linewidth: 1.1
+      linetype: solid
+      alpha: 1.0
+    uncalibrated:
+      linewidth: 0.5
+      linetype: dashed          # (1) shape
+      alpha: 0.65               # (2) weight
+      caption_required: true    # (3) words -- three independent carriers
+
+# -----------------------------------------------------------------------------
+figures:
+
+  bm_plot_scale_h:
+    question: "What is the scale coefficient, and how much did calibration move the endpoints?"
+    modes:
+      single_fit: "one calibrated fit with the raw interval shown"
+      fit_comparison: "a named list of fits on a shared coefficient axis"
+    geoms: [geom_vline, geom_linerange, geom_point]
+    x: {var: H, label: "Mokken scale coefficient H", limits: data}
+    y: {var: fit_label, label: null, note: "one row per fit; free when several fits are compared"}
+    layers:
+      - {name: benchmarks, from: benchmarks, geom: geom_vline, linetype: dotted}
+      - {name: raw, from: "interval$raw_lower/raw_upper", encoding: uncalibrated, offset_y: -0.14}
+      - {name: calibrated, from: "interval$lower/upper", encoding: calibrated}
+      - {name: point, from: "interval$point_estimate", geom: geom_point, size: 2.8}
+    caption: "{method_id}. {interpretation_note}"
+    alt: "Interval plot of the Mokken scale coefficient H at {H}, with a 95 percent interval from {lower} to {upper}, shown against conventional benchmarks."
+    assertions:
+      - "the point layer x equals interval$point_estimate exactly"
+      - "the calibrated segment is at least as wide as the raw segment for binary fits"
+      - "the calibrated segment is narrower than the raw segment for clustered fits"
+      - "raw and calibrated share a midpoint to within 1e-12"
+      - "one vertical rule exists per requested benchmark"
+
+  bm_plot_draws:
+    question: "What does the bootstrap distribution look like, and where did the calibration put the endpoints?"
+    modes:
+      density: "density of finite scale draws"
+      histogram_with_rug: "histogram plus individual-draw rug"
+    geoms: [geom_density, geom_histogram, geom_vline, geom_rug]
+    x: {var: draw_value, label: "Bayesian-bootstrap draws of H"}
+    y: {var: density_or_count, label: "density"}
+    layers:
+      - {name: distribution, from: "draws$scale", geom: "density|histogram"}
+      - {name: raw_bounds, from: "interval$raw_lower/raw_upper", geom: geom_vline, encoding: uncalibrated}
+      - {name: calibrated_bounds, from: "interval$lower/upper", geom: geom_vline, encoding: calibrated}
+      - {name: point, from: "interval$point_estimate", geom: geom_vline, linetype: dotdash}
+    subtitle: "{defined_draws} of {total_draws} draws defined"
+    caption: "{method_id}. Solid rules are the calibrated endpoints; dashed rules are the uncorrected equal-tail quantiles."
+    alt: "Density of the Bayesian-bootstrap draws of H with vertical rules marking the uncorrected and calibrated interval endpoints."
+    assertions:
+      - "the number of density input rows equals the number of finite scale draws"
+      - "exactly four vertical rules are drawn when show_interval is TRUE"
+      - "the calibrated rules lie outside the raw rules for binary fits"
+      - "the subtitle reports defined_draws matching sum(is.finite(draws$scale))"
+
+  bm_plot_item_h:
+    question: "How do item coefficients vary within the declared fixed scale?"
+    modes:
+      point_only: "ordered item coefficients without item intervals"
+      interval_with_benchmarks: "opt-in raw item intervals and reference rules"
+    geoms: [geom_vline, geom_linerange, geom_point]
+    x: {var: H, label: "Item coefficient H[i]"}
+    y: {var: item, label: null, order: "H ascending, radix; smallest H at the BOTTOM of the panel"}
+    layers:
+      - {name: benchmark, from: benchmarks, geom: geom_vline, linetype: dotted, when: requested}
+      - {name: interval, from: "bb_lower/bb_upper", geom: geom_linerange, encoding: uncalibrated, when: requested}
+      - {name: point, from: H, geom: geom_point, shape_by: denominator_status}
+    caption: "Item intervals are uncalibrated raw equal-tail quantiles; {uncalibrated_note}"
+    alt: "Dot-and-line plot of item coefficients ordered from smallest to largest, with uncalibrated intervals."
+    assertions:
+      - "the item with min(H) has the smallest y position in the built data"
+      - "the item with max(H) has the largest y position in the built data"
+      - "every interval layer row has linetype dashed"
+      - "the caption contains the word uncalibrated"
+      - "items whose denominator_status is not positive use an open or cross shape"
+
+  bm_plot_pair_h:
+    question: "What are the pair-level H values and denominator states in the declared scale?"
+    modes:
+      lower_values: "lower triangle with coefficient labels"
+      full_no_values: "full mirrored square without labels"
+      lower_boundary: "lower triangle with boundary crosses when present"
+    geoms: [geom_tile, geom_text, geom_point]
+    x: {var: item_j, label: null, order: "same item order as bm_plot_item_h"}
+    y: {var: item_i, label: null, order: "same item order, reversed so the triangle reads top-left"}
+    fill: {var: H, scale: diverging, midpoint: 0, label: "Pair coefficient H[ij]"}
+    layers:
+      - {name: tiles, from: pair table, geom: geom_tile}
+      - {name: values, from: H, geom: geom_text, when: "n_items <= 12"}
+      - {name: boundary_marks, from: denominator_status, geom: geom_point, shape: 4}
+    caption: "{method_id}. Crosses mark pairs whose maximum covariance is zero or near zero."
+    alt: "Lower-triangular heatmap of pair coefficients; darker cells are larger, and crosses mark boundary pairs."
+    assertions:
+      - "only pairs with i < j in the fixed item order appear (lower triangle)"
+      - "the tile for the max-H pair has the extreme fill value"
+      - "the fill scale midpoint is 0, so negative pairs are visually distinct"
+      - "the item order on both axes equals the order used by bm_plot_item_h"
+
+  bm_plot_calibration:
+    question: "How large is the width correction at this sample size or cluster count?"
+    modes:
+      binary: "binary correction over respondent sample size"
+      clustered_confirmed: "clustered correction with a fit inside G = 22-80"
+      clustered_extrapolated: "clustered correction with a fit above G = 80"
+    geoms: [geom_hline, geom_line, geom_point, geom_text]
+    x: {var: n_or_G, label: "binary: n | clustered: number of clusters G"}
+    y: {var: multiplier, label: "width multiplier"}
+    layers:
+      - {name: unity, geom: geom_hline, yintercept: 1, linetype: dotted}
+      - {name: binary_curve, from: formula, geom: geom_line, linetype: solid}
+      - {name: confirmed_cluster_curve, from: formula, geom: geom_line, range: "22 <= G <= 80", linetype: solid}
+      - {name: extrapolated_cluster_curve, from: formula, geom: geom_line, range: "G < 22 or G > 80", linetype: dashed}
+      - {name: current, from: fit, geom: geom_point, when: "a fit was supplied"}
+    formulas:
+      binary: "1 + 0.25/sqrt(n)"
+      clustered: "1 - 1.5/sqrt(G)"
+    validation:
+      confirmed_cluster_min: 22
+      confirmed_cluster_max: 80
+      confirmed_status: CONFIRMED_CLUSTER_COUNT
+      extrapolated_status: EXTRAPOLATED_CLUSTER_COUNT
+      current_status_from: "interval$validation_status"
+    caption: "The constant is frozen and is not a user argument. For clustered calibration, solid means confirmed G = 22-80 and dashed means extrapolation outside that range; a supplied fit reports its validation status."
+    alt: "Curve of the interval width multiplier against sample size; the clustered curve is solid over confirmed G = 22-80 and dashed outside it as extrapolation, with the current fit and validation status marked when supplied."
+    assertions:
+      - "the binary curve is strictly above 1 and decreasing toward 1"
+      - "the clustered curve is strictly below 1 and increasing toward 1"
+      - "the clustered segment from G = 22 through G = 80 is solid"
+      - "clustered curve values below G = 22 and above G = 80 are dashed extrapolations"
+      - "when a fit is supplied, the marked point equals interval$width_multiplier to 1e-12"
+      - "a fit above G = 80 reports EXTRAPOLATED_CLUSTER_COUNT in its caption and alternative text"
+      - "the function runs with x = NULL, so it can be used for teaching"
+
+  bm_plot_mc_stability:
+    question: "Have enough draws been taken for the endpoints to settle?"
+    modes:
+      running_endpoints: "running lower and upper endpoints over draw prefixes"
+    geoms: [geom_hline, geom_line, geom_point]
+    x: {var: draws_used, label: "draws used"}
+    y: {var: endpoint, label: "interval endpoint"}
+    layers:
+      - {name: final, geom: geom_hline, from: "interval$lower/upper", linetype: dashed}
+      - {name: running, geom: geom_line, from: "running endpoints over draw prefixes"}
+      - {name: terminal, geom: geom_point, from: "final running endpoints"}
+    caption: "Endpoint Monte Carlo diagnostics only; not evidence about calibration."
+    alt: "Running interval endpoints against the number of draws used, converging to the final values."
+    assertions:
+      - "the running series ends exactly at interval$lower and interval$upper"
+      - "the x axis maximum equals total_draws"
+      - "the caption states the diagnostic is not calibration evidence"
+
+  bm_plot_clusters:
+    question: "How unequal are the cluster sizes, and what weights do the two targets imply?"
+    modes:
+      sizes: "cluster-size bars"
+      implied_weights: "respondent-weighted and equal-cluster implied weights"
+    geoms: [geom_col, geom_line, geom_point]
+    x: {var: cluster, label: null, order: "size descending, radix"}
+    y:
+      sizes: {var: size, label: "cluster size"}
+      implied_weights: {var: weight, label: "weight given to the cluster"}
+    panels:
+      - {name: sizes, y: size}
+      - {name: weights, y: "weight_respondent vs weight_equal", when: "show_targets"}
+    layers:
+      - {name: sizes, geom: geom_col, from: "cluster sizes", when: "show_targets = FALSE"}
+      - {name: weights, geom: geom_line, from: "weight_respondent and weight_equal", when: "show_targets = TRUE"}
+      - {name: weight_points, geom: geom_point, from: "weight_respondent and weight_equal", when: "show_targets = TRUE"}
+    subtitle: "G = {G}; sizes {min}-{max}; optional descriptive size/mean-score Spearman statistic"
+    caption: "The respondent-weighted target uses n_g/N and the equal-cluster target uses 1/G. This display does not compare target H values; fit both targets and compare their deterministic coefficients directly."
+    alt: "Cluster sizes or the implied respondent-weighted and equal-cluster weights; no target-H agreement claim is made."
+    assertions:
+      - "the number of bars equals G"
+      - "sum(weight_respondent) and sum(weight_equal) each equal 1 to 1e-12"
+      - "the largest cluster has the largest weight_respondent"
+      - "every weight_equal value is identical"
+      - "caption directs target-H comparison to fits under both targets"
+
+  bm_plot_margins:
+    question: "What are the marginal category shares and per-item denominator headroom?"
+    modes:
+      binary_marginal: "binary score-one shares"
+      ordinal_marginal: "stacked target-weighted category shares"
+      headroom: "smallest pair maximum covariance involving each item"
+      gap_alias: "deprecated alias that warns and delegates to headroom"
+    geoms: [geom_col, geom_segment, geom_point]
+    x:
+      binary_marginal: {var: mean_score, label: "share scored 1, P(Y = 1)"}
+      ordinal_marginal: {var: share, label: "category share; each item sums to 1"}
+      headroom: {var: denominator_headroom, label: "minimum pair maximum covariance (denominator headroom)"}
+    y: {var: item, label: null, order: "same item order as bm_plot_item_h"}
+    layers:
+      - {name: binary_share, geom: geom_segment, from: mean_score, when: binary_marginal}
+      - {name: binary_point, geom: geom_point, from: mean_score, when: binary_marginal}
+      - {name: ordinal_shares, geom: geom_col, from: category_mass, when: ordinal_marginal}
+      - {name: headroom_segment, geom: geom_segment, from: denominator_headroom, when: headroom}
+      - {name: headroom_point, geom: geom_point, from: denominator_headroom, when: headroom}
+    caption:
+      marginal: "Binary points show score-one shares; ordinal bars partition target mass over each declared support."
+      headroom: "Headroom is the smallest pair maximum covariance involving each item; values near zero mark a denominator boundary."
+    alt: "Binary score-one shares, stacked ordinal category shares, or minimum pair denominator headroom, according to the requested mode."
+    assertions:
+      - "binary mode: bar length equals colMeans of the scored complete-scale data to 1e-12"
+      - "ordinal mode: category shares within an item sum to 1 to 1e-12"
+      - "headroom mode: each value equals the minimum pair maximum covariance involving that item"
+      - "gap alias emits a deprecation warning and returns the headroom data"
+
+  bm_plot_overview:
+    question: "What are the scale interval, draws, item coefficients, and primary diagnostic in one view?"
+    modes:
+      unclustered: "scale, draws, items, and denominator headroom"
+      clustered: "scale, draws, items, and cluster implied weights"
+    geoms: [patchwork]
+    layers:
+      - {name: scale, from: bm_plot_scale_h}
+      - {name: draws, from: bm_plot_draws}
+      - {name: items, from: bm_plot_item_h}
+      - {name: diagnostic, from: "bm_plot_margins or bm_plot_clusters"}
+    caption: "One shared method caption; item intervals in the item panel are uncalibrated."
+    alt: "Four-panel composition of the scale interval, bootstrap draws, item coefficients, and a fit-appropriate diagnostic."
+    assertions:
+      - "unclustered fits use denominator headroom as the diagnostic panel"
+      - "clustered fits use implied cluster weights as the diagnostic panel"
+      - "the result inherits from patchwork"

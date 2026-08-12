@@ -1,0 +1,223 @@
+---
+title: "Binary scales: the SRS workflow"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Binary scales: the SRS workflow}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+source("_setup.R")
+library(bayesmokken)
+```
+
+This vignette runs one binary scale from raw data frame to a table you could
+paste into a manuscript. It uses the Scientific Reasoning Scale, which the
+package ships.
+
+## The data
+
+Eleven binary items answered by 337 respondents in an Italian validation study
+(Caliciuri & Lanz, 2024, CC BY 4.0; see `?srs` for the full provenance and
+`bm_cite()` for the citation to use).
+
+```{r data}
+data(srs)
+dim(srs)
+srs[1:4, 1:6]
+```
+
+Items are already scored 0/1 in the direction the instrument intends. That is
+worth checking rather than assuming, which is what the next step is for.
+
+## Screen before you fit
+
+```{r check}
+bm_check_data(srs)
+```
+
+`bm_check_data()` is not a formality. It reports the things that quietly change
+an answer: item types, how many respondents survive complete-scale filtering,
+constant items, and items whose relationship with the rest of the scale runs
+backwards.
+
+**On reverse keying.** The screen *reports* candidates; it does not fix them.
+That is deliberate. Published instruments very often arrive already scored, and
+a package that silently flipped items would corrupt exactly the datasets that
+were prepared most carefully. When you do need to recode, say so explicitly:
+
+```{r score-map, eval = FALSE}
+# Only if your own items need it -- the SRS does not.
+sm <- bm_score_map(srs, reverse = c("SRS3", "SRS7"))
+fit <- bb_mokken_h(srs, score_map = sm, draws = 2000, seed = 1)
+```
+
+## The coefficient, without an interval
+
+`mokken_h()` computes the coefficient and nothing else. It is deterministic,
+instant, and a good first look.
+
+```{r deterministic}
+emp <- mokken_h(srs, warn = FALSE)
+emp
+```
+
+The object carries the three levels of the analysis:
+
+```{r structure}
+bm_scale_h(emp)
+head(bm_item_h(emp), 3)
+head(bm_pair_h(emp), 3)
+```
+
+## The interval
+
+```{r fit}
+fit <- bb_mokken_h(srs, draws = 2000, seed = 1)
+bm_interval(fit)
+```
+
+### Choosing the number of draws
+
+`draws` controls Monte Carlo noise in the endpoints, not the width of the
+interval. The question is how many are enough for the endpoints to stop moving:
+
+```{r fig-stability, fig.alt = "Interval endpoints plotted against the number of Bayesian-bootstrap draws, showing both endpoints flattening as the draw count grows."}
+bm_plot_mc_stability(fit)
+```
+
+`bm_mc_diagnostics()` puts a number on the same thing:
+
+```{r mc}
+bm_mc_diagnostics(fit)
+```
+
+Read the endpoint Monte Carlo standard errors against the precision you intend
+to report. If you report three decimals, you want simulation noise well below
+the third.
+
+### What the correction did
+
+```{r fig-draws, fig.alt = "Bootstrap distribution of the scalability coefficient with the uncorrected and corrected interval endpoints drawn beneath it, showing the corrected endpoints slightly further apart."}
+bm_plot_draws(fit)
+```
+
+```{r width}
+iv <- bm_interval(fit)
+c(raw_width = iv$raw_upper - iv$raw_lower,
+  calibrated_width = iv$upper - iv$lower,
+  multiplier = iv$width_multiplier)
+```
+
+The multiplier here is `r fmt_h(iv$width_multiplier, 4)`, a change of
+`r fmt_width_change(iv)`. It follows $1 + 0.25/\sqrt{n}$, so it shrinks as the
+sample grows: the uncorrected interval was found to be slightly too narrow, and
+the shortfall it repairs is itself a small-sample effect.
+`vignette("m2-bayesian-bootstrap-calibration")` derives it.
+
+The midpoint is untouched. The correction only ever changes length.
+
+## Reproducing the published interval
+
+The article reports this scale at 50,000 draws. That fit is cached, so this
+vignette can show it without a long bootstrap:
+
+```{r published}
+published <- bm_cached("srs_50000")
+bm_interval(published)
+```
+
+```{r published-note, echo = FALSE, results = "asis"}
+cat("<p><em>", bm_cached_note("srs_50000"), "</em></p>", sep = "")
+```
+
+One honest caveat, stated in that note and worth repeating: the article's own
+draws came from the research harness rather than from `bb_mokken_h()`, so the
+endpoints agree to Monte Carlo error, not exactly. The opt-in published-number
+gate checks this when the runner is invoked as
+`Rscript inst/scripts/run-all-gates.R --published`. The ordinary runner does
+not read external research sources; its mandatory G-10 instead rebuilds and
+deep-diffs the shipped cache from an isolated current-source installation.
+
+Note also how little the interval moved between 2,000 and 50,000 draws:
+
+```{r compare-draws}
+rbind(`2,000 draws`  = c(lower = iv$lower, upper = iv$upper),
+      `50,000 draws` = c(lower = bm_interval(published)$lower,
+                         upper = bm_interval(published)$upper))
+```
+
+That is the point of the stability plot above. Draws buy precision in the
+*answer about* the interval, not a different interval.
+
+## Diagnostics
+
+```{r diagnostics}
+bm_diagnostics(fit)
+```
+
+The denominator section deserves attention. $H$ is a ratio, and a pair whose
+maximum attainable covariance is near zero contributes a near-zero denominator.
+Such pairs are reported rather than dropped, because dropping them silently
+would change the estimand without saying so.
+
+```{r regularity}
+head(bm_regularity(fit), 4)
+```
+
+## Reporting
+
+```{r report}
+bm_report(fit, what = "scale", format = "markdown")
+```
+
+```{r report-items}
+head(bm_report(fit, what = "item", format = "data.frame", digits = 3)$table, 4)
+```
+
+And to place the estimate against the conventional landmarks:
+
+```{r benchmark}
+bm_benchmark(fit)
+```
+
+`bm_benchmark()` reports a point relation and nothing more. Its output contains
+no verdict about the scale, because the landmarks are descriptive conventions
+rather than decision rules, and because the software is not in a position to
+know what your instrument is for.
+
+## Common errors
+
+**Items stored as text or factors.** A column of `"0"`/`"1"` is not numeric.
+Convert before fitting; `bm_check_data()` names the offending columns.
+
+**Missing-value codes left in the data.** Values like `-9` or `99` are
+ordinary numbers to R. Declare them:
+
+```{r missing, eval = FALSE}
+mc <- bm_missing_codes(items = names(srs), codes = c(-9, 99))
+fit <- bb_mokken_h(srs, missing_codes = mc, draws = 2000, seed = 1)
+```
+
+**A constant item.** An item everyone answered the same way has zero variance
+and cannot contribute to a covariance ratio. The screen flags it; remove it and
+refit, remembering that you have then declared a different scale.
+
+**Reverse-keyed items.** Covered above. Report, inspect, then recode
+deliberately.
+
+**Refitting after dropping an item.** Legitimate, but it defines a new
+analysis. The interval from the eleven-item scale says nothing about the
+ten-item one, and `bm_compare()` will refuse to line the two up unless you pass
+`allow_different = TRUE` to say you meant it.
+
+## Where to go next
+
+- `vignette("a4-reporting-and-exporting")` — tables, sentence templates, and
+  the reproducibility appendix.
+- `vignette("a5-visualization-cookbook")` — the other six figures.
+- `vignette("m2-bayesian-bootstrap-calibration")` — where the multiplier comes
+  from and why $\gamma$ is not an argument.
+- `vignette("a3-clustered-polytomous-workflow")` — if your respondents are
+  nested in groups, this workflow is not the right one.

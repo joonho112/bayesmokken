@@ -1,0 +1,36 @@
+# G-3 exact-sentence whitelist.
+# Columns are tab-separated. `sentence_hash` is SHA-256 of the lower-cased,
+# whitespace-normalized matched source line. `expected_count` is exact.
+# Generated man/*.Rd rows must trace to a live whitelisted R source hit.
+path	pattern	sentence_hash	expected_count	source_path	source_pattern	source_hash
+DESCRIPTION	credible_interval	265e5e18a92a4f88276220cacc245791e387d3ef2ac7172b2e67692c38cb549c	1	.	.	.
+DESCRIPTION	threshold_probability	f292110c0410ca18c31198d4b6d3ff5cb6977c971cd360c0a2e10d7584d81de0	1	.	.	.
+man/bayes_mokken_h.Rd	threshold_probability	4c46f7bf3c70732ac73eb1fdef262fcd8253624e85aac070a438bcdc8821d332	1	R/bb-mokken-h.R	threshold_probability	d0e494a3c54aba299bfffdde091a0d1d9fe3a69938f0e989082f6b8b5582ffb6
+man/bayesmokken-intervals.Rd	credible_interval	6b889281f2b2d34a0cb4373b40aa2a23718bca086afbd10326b26471374f3f4f	1	R/package-doc.R	credible_interval	ea4f6cd901de3be008b5cdf533413d9fb6dcf7a88dddeada0cd736c4199f3027
+man/bayesmokken-intervals.Rd	posterior_probability	0cdf0e00a845b7fc31c87a35fe1c31654aec651592a964c1aa76b7c77fbab0e7	1	R/package-doc.R	posterior_probability	d7573ac160e7786178353fbf45e3ef07af4ade3534f6a2fafe9d712345a69a5e
+man/bayesmokken-intervals.Rd	prob_h_exceeds	0cdf0e00a845b7fc31c87a35fe1c31654aec651592a964c1aa76b7c77fbab0e7	1	R/package-doc.R	prob_h_exceeds	d7573ac160e7786178353fbf45e3ef07af4ade3534f6a2fafe9d712345a69a5e
+man/bayesmokken-package.Rd	credible_interval	2f77d433320a4f0b8e73c79097c1dae421471bed993f4ad2ac34eeb92b3fad26	1	R/package-doc.R	credible_interval	78856e1f7c9ea5c06dedbb0b675bcf73a7098674b3e59622f72df670d98521d0
+man/bayesmokken-package.Rd	prob_h_exceeds	9a4994ec224a180213263cef963a266c7e55d5066b0afeec5408d9bb8bfc9178	1	R/package-doc.R	prob_h_exceeds	fa93e8b705fd37d30aff1035eafd80b42d05d75ced3bb4ddef74980a892e8669
+man/bayesmokken-package.Rd	threshold_probability	9a4994ec224a180213263cef963a266c7e55d5066b0afeec5408d9bb8bfc9178	1	R/package-doc.R	threshold_probability	fa93e8b705fd37d30aff1035eafd80b42d05d75ced3bb4ddef74980a892e8669
+man/bb_mokken_h.Rd	threshold_probability	b7c105502d76f90a2d1b506555d36044374a9424a8f47a552abcd849926bb5e4	1	R/bb-mokken-h.R	threshold_probability	167a580952ece9a7e7601d318d6ee13eac7d74024a4d8deaba1e2eb6936d1690
+R/bb-interval.R	credible_interval	f39547e7ecd6d8567c2380f83456c6fddca71ec3d0940427edd2adc1b152b36f	1	.	.	.
+R/bb-interval.R	posterior_probability	f39547e7ecd6d8567c2380f83456c6fddca71ec3d0940427edd2adc1b152b36f	1	.	.	.
+R/bb-mokken-h.R	posterior_probability	f2fe63b7005d9be77c7b414761bae5456a9c38440f7531ae05b7c1e52ba9ecf3	1	.	.	.
+R/bb-mokken-h.R	threshold_probability	167a580952ece9a7e7601d318d6ee13eac7d74024a4d8deaba1e2eb6936d1690	1	.	.	.
+R/bb-mokken-h.R	threshold_probability	d0e494a3c54aba299bfffdde091a0d1d9fe3a69938f0e989082f6b8b5582ffb6	1	.	.	.
+R/class-bb-h.R	credible_interval	6d2420f024bb0896d25ed00664680a496f0c30620015899d94f7899961f3cd2d	1	.	.	.
+R/class-bb-h.R	posterior_probability	6d2420f024bb0896d25ed00664680a496f0c30620015899d94f7899961f3cd2d	1	.	.	.
+R/class-cluster-bb-h.R	credible_interval	2dfc1128fd451513424d2f7ebd83cd3eeb99a55c14ec8ef33e427e804b16ef9e	1	.	.	.
+R/package-doc.R	credible_interval	78856e1f7c9ea5c06dedbb0b675bcf73a7098674b3e59622f72df670d98521d0	1	.	.	.
+R/package-doc.R	credible_interval	ea4f6cd901de3be008b5cdf533413d9fb6dcf7a88dddeada0cd736c4199f3027	1	.	.	.
+R/package-doc.R	posterior_probability	d7573ac160e7786178353fbf45e3ef07af4ade3534f6a2fafe9d712345a69a5e	1	.	.	.
+R/package-doc.R	prob_h_exceeds	d7573ac160e7786178353fbf45e3ef07af4ade3534f6a2fafe9d712345a69a5e	1	.	.	.
+R/package-doc.R	prob_h_exceeds	fa93e8b705fd37d30aff1035eafd80b42d05d75ced3bb4ddef74980a892e8669	1	.	.	.
+R/package-doc.R	threshold_probability	fa93e8b705fd37d30aff1035eafd80b42d05d75ced3bb4ddef74980a892e8669	1	.	.	.
+R/print-helpers.R	credible_interval	2ad2088198848f304ad5a683526056f06e58510527679ee1fed9678faf762c42	1	.	.	.
+R/print-helpers.R	posterior_probability	2ad2088198848f304ad5a683526056f06e58510527679ee1fed9678faf762c42	1	.	.	.
+NEWS.md	threshold_probability	188ed25885e36f8ad4a504e5816e0e1b3079e73086b6394b0d03f4ebf77ae87d	1	.	.	.
+vignettes/a1-getting-started.Rmd	credible_interval	709e44caf466a4d6a265648434e3ed03e5bae7b2fad47cfdd364329ac3c399ec	1	.	.	.
+README.md	credible_interval	1d2091b869345b97f91953360e7098f03b496a1cd625d0c9cbe0d0925bd9f788	1	.	.	.
+README.md	credible_interval	de1f233857f803728047b5228469f332fadf25d055ec20e3781f7516e0e0e774	1	.	.	.
+README.Rmd	credible_interval	de1f233857f803728047b5228469f332fadf25d055ec20e3781f7516e0e0e774	1	.	.	.

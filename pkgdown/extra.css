@@ -1,0 +1,20 @@
+/* Block equations are rendered as native MathML. A display equation wider than
+   the viewport does not shrink and does not scroll on its own, so it widens the
+   whole document and the page scrolls sideways -- at 375px the methodological
+   vignettes pushed the document to 511px. Let the equation scroll inside its
+   own box instead. */
+math[display="block"],
+.math.display {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Wide tables get the same treatment rather than stretching the page. */
+.template-article table,
+.template-reference-topic table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}

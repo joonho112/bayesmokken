@@ -1,0 +1,333 @@
+---
+title: "Clustered polytomous scales: the SWMDK workflow"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Clustered polytomous scales: the SWMDK workflow}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+source("_setup.R")
+library(bayesmokken)
+```
+
+Pupils sit in classrooms, patients attend clinics, employees belong to teams.
+When respondents are grouped, two things change at once, and this vignette is
+about both.
+
+## Why clustering is not a detail
+
+Respondents in the same classroom resemble one another more than respondents
+drawn at random. An interval computed as though all 614 pupils were independent
+therefore counts each one as carrying more information than it does, and comes
+out too narrow. The remedy is a bootstrap that resamples *classrooms* and then
+pupils within them.
+
+The second change is easier to miss and harder to undo. Once respondents are
+grouped, **"the average" stops having one meaning.**
+
+- The **respondent-weighted** coefficient gives every pupil equal weight. Big
+  classrooms therefore count for more.
+- The **equal-cluster** coefficient gives every classroom equal weight,
+  whatever its size.
+
+These are different population quantities. If class size is unrelated to what
+you are measuring they nearly coincide, and the choice is immaterial. If large
+classes differ systematically from small ones — informative cluster size — they
+come apart, and the two answer different research questions. Neither is more
+correct. But the software cannot know which you meant, so it refuses to guess:
+`cluster_target` has no default.
+
+## The data
+
+```{r data}
+data(classroom_wb)
+str(classroom_wb, give.head = FALSE)
+```
+
+614 pupils in 30 classrooms answering six five-point items. It is fully
+synthetic and built so that cluster size *is* informative, which is what makes
+the choice of target visible rather than academic (see `?classroom_wb`).
+
+```{r cluster-info}
+items <- paste0("wb", 1:6)
+bm_cluster_info(classroom_wb$class_id, data = classroom_wb[, items])
+```
+
+```{r fig-clusters, fig.alt = "Classrooms ordered by size, showing the weight each of the two population targets assigns to each classroom: respondent weighting rises with class size while equal-cluster weighting is flat."}
+bm_plot_clusters(classroom_wb$class_id, show_targets = TRUE)
+```
+
+That figure is the whole argument in one picture. Under respondent weighting
+the bars track class size; under equal-cluster weighting they are level.
+
+## Declaring the supports
+
+Polytomous items need their **support** — the response categories the
+instrument defines — declared rather than inferred:
+
+```{r supports}
+sup <- bm_supports(classroom_wb, items = items)
+sup[1:2]
+```
+
+This is required, not optional. The denominator of $H$ is a maximum attainable
+covariance computed *at the declared support*. If a category was never used in
+your sample, inferring the support from the data would quietly compute the
+denominator at the wrong place and return a number that looks fine. So the
+package asks.
+
+`bm_supports()` reads the categories it can see; when the instrument defines
+categories your sample missed, say so with `extend`:
+
+```{r supports-extend, eval = FALSE}
+sup <- bm_supports(classroom_wb, items = items, extend = 1:5)
+```
+
+## Fitting
+
+```{r fit-resp}
+fit_resp <- bb_mokken_h(
+  classroom_wb[, items],
+  item_type      = "ordinal",
+  supports       = sup,
+  cluster        = as.character(classroom_wb$class_id),
+  cluster_target = "respondent",
+  weight_law     = "hierarchical_cluster",
+  draws          = 2000,
+  seed           = 1
+)
+fit_resp
+```
+
+Six arguments, each of which the package refuses to choose for you:
+`item_type` and `supports` fix the denominator, `cluster` supplies the
+grouping, `cluster_target` names the estimand, `weight_law` selects the
+two-stage bootstrap, and `seed` makes it reproducible.
+
+## Comparing the two targets
+
+```{r fit-equal}
+fit_equal <- bb_mokken_h(
+  classroom_wb[, items],
+  item_type      = "ordinal",
+  supports       = sup,
+  cluster        = as.character(classroom_wb$class_id),
+  cluster_target = "equal_cluster",
+  weight_law     = "hierarchical_cluster",
+  draws          = 2000,
+  seed           = 1
+)
+
+bm_compare(respondent = fit_resp, equal_cluster = fit_equal)
+```
+
+The two differ by about
+`r fmt_h(abs(bm_interval(fit_resp)$point_estimate - bm_interval(fit_equal)$point_estimate), 3)`
+here. That gap is not error, and it will not shrink with more data — it is the
+difference between two population quantities. Report which one you estimated.
+
+> **Minimum interpretation contract.** This is a repeated-sampling CI for a
+> fixed declared item set. Calibration applies to the scale coefficient only;
+> item and pair intervals are uncalibrated. Landmarks are descriptive. The
+> cluster target is substantive. Cluster counts 22–80 are confirmed, counts
+> above 80 are marked extrapolated, and counts below 22 are refused on the
+> calibrated route.
+
+## The correction runs the other way
+
+For binary scales the correction *widens* the interval. Here it **narrows** it:
+
+```{r multiplier}
+iv <- bm_interval(fit_resp)
+c(multiplier = iv$width_multiplier,
+  clusters = iv$cluster_count, respondents = iv$n_complete)
+```
+
+```{r fig-calibration, fig.alt = "Clustered width multiplier versus cluster count: solid from 22 through 80 where confirmation was conducted, dashed outside that range to mark extrapolation, and increasing toward one."}
+bm_plot_calibration(mode = "clustered")
+```
+
+The uncorrected two-stage interval turned out to be too *wide*, so the
+correction $1 - 1.5/\sqrt{G}$ pulls it in — here to
+`r fmt_h(iv$width_multiplier, 4)`, a change of `r fmt_width_change(iv)`. The
+multiplier depends on the number of clusters $G$, not the number of
+respondents, because it is the cluster count that governs how much the
+two-stage bootstrap overstates.
+
+**$G$ matters more than you might expect.** At $G = 22$ the multiplier is
+roughly 0.68 — a substantial narrowing. The public contract has three regions:
+below 22 the calibrated call fails; 22–80 is confirmed; above 80 the call
+returns a result with a typed extrapolation warning and
+`EXTRAPOLATED_CLUSTER_COUNT` metadata.
+
+```{r g-refusal, error = TRUE}
+small <- classroom_wb[classroom_wb$class_id %in% levels(classroom_wb$class_id)[1:10], ]
+bb_mokken_h(
+  small[, items], item_type = "ordinal", supports = sup,
+  cluster = as.character(droplevels(small$class_id)),
+  cluster_target = "respondent", weight_law = "hierarchical_cluster",
+  draws = 500, seed = 1, interval = "calibrated"
+)
+```
+
+Ten classrooms is below the confirmed range, so the calibrated interval is
+refused rather than extrapolated. You are not left without an analysis: the
+deterministic coefficient and the uncorrected comparator both remain available
+at any $G$.
+
+Above 80, the calculation is available but is not re-labelled as confirmed:
+
+```{r g-extrapolation}
+large <- bm_simulate(
+  n = 486, n_items = 3, type = "ordinal", n_categories = 4,
+  clusters = 81, icc = 0.15, seed = 1081
+)
+large_items <- paste0("item", 1:3)
+large_supports <- stats::setNames(rep(list(1:4), 3), large_items)
+warning_class <- NA_character_
+fit_81 <- withCallingHandlers(
+  bb_mokken_h(
+    large[, large_items], item_type = "ordinal", supports = large_supports,
+    cluster = as.character(large$cluster), cluster_target = "respondent",
+    weight_law = "hierarchical_cluster", draws = 100, seed = 81,
+    warn = TRUE
+  ),
+  bm_cluster_count_extrapolation_warning = function(w) {
+    warning_class <<- class(w)[1]
+    invokeRestart("muffleWarning")
+  }
+)
+iv_81 <- bm_interval(fit_81)
+stopifnot(
+  identical(iv_81$validation_status, "EXTRAPOLATED_CLUSTER_COUNT"),
+  identical(iv_81$cluster_count, 81L),
+  identical(warning_class, "bm_cluster_count_extrapolation_warning")
+)
+c(G = iv_81$cluster_count, multiplier = iv_81$width_multiplier,
+  validation_status = iv_81$validation_status,
+  warning_class = warning_class)
+```
+
+```{r g-alternatives}
+bm_interval(bb_mokken_h(
+  small[, items], item_type = "ordinal", supports = sup,
+  cluster = as.character(droplevels(small$class_id)),
+  cluster_target = "respondent", weight_law = "hierarchical_cluster",
+  draws = 500, seed = 1, interval = "equal_tail", warn = FALSE
+))
+```
+
+Note its `validation_status`. The object says plainly that it makes no
+calibrated claim.
+
+## The published analysis
+
+Paper B analyses the SWMDK data from the **mokken** package: two scales,
+teacher support and classmate support, rated by pupils in classrooms.
+
+```{r swmdk, eval = has_mokken}
+utils::data("SWMDK", package = "mokken")
+teacher <- paste0("Item", 1:6)
+fit_teacher <- bb_mokken_h(
+  SWMDK[, teacher], item_type = "ordinal",
+  supports = stats::setNames(rep(list(1:5), length(teacher)), teacher),
+  cluster = as.character(SWMDK$classId), cluster_target = "respondent",
+  weight_law = "hierarchical_cluster", draws = 2000, seed = 1
+)
+bm_interval(fit_teacher)
+```
+
+```{r swmdk-cached, eval = !has_mokken, echo = !has_mokken}
+# The mokken package is not installed, so this section shows the cached fit
+# instead. Install mokken to run it yourself.
+bm_interval(bm_cached("swmdk_teacher_respondent"))
+```
+
+```{r swmdk-both, echo = FALSE}
+tea <- bm_interval(bm_cached("swmdk_teacher_respondent"))
+cls <- bm_interval(bm_cached("swmdk_classmate_respondent"))
+data.frame(
+  scale = c("teacher support", "classmate support"),
+  H     = c(fmt_h(tea$point_estimate), fmt_h(cls$point_estimate)),
+  CI    = c(fmt_ci(tea), fmt_ci(cls)),
+  row.names = NULL
+)
+```
+
+```{r swmdk-cache-notes, echo = FALSE, results = "asis"}
+cat("<p><em>", bm_cached_note("swmdk_teacher_respondent"), "</em></p>",
+    sep = "")
+cat("<p><em>", bm_cached_note("swmdk_classmate_respondent"), "</em></p>",
+    sep = "")
+```
+
+The article reports these at 99,999 draws from the research harness rather than
+from `bb_mokken_h()`, so the endpoints above agree with the published ones to
+Monte Carlo error rather than exactly. The visible notes above identify the
+stored fits. Mandatory G-10 rebuilds and deep-diffs those caches from an
+isolated current-source installation. The separate published-number check uses
+external paper artifacts only when the runner is invoked with `--published`.
+
+## Common errors
+
+Each of these raises rather than returning something plausible.
+
+**Missing supports on the clustered ordinal route.** A cluster argument makes
+`item_type = "auto"` resolve to ordinal, but it never invents a support:
+
+```{r cross-binary-missing-support, error = TRUE}
+bb_mokken_h(srs, cluster = rep(1:25, length.out = nrow(srs)),
+            cluster_target = "respondent", draws = 200, seed = 1)
+```
+
+**Explicit two-category clustered input.** Once its supports are declared, the
+call reaches the separate validation-scope refusal: the clustered calibration
+was confirmed for genuinely polytomous items, not a relabelled binary scale.
+
+```{r cross-binary-scope, error = TRUE}
+binary_supports <- stats::setNames(rep(list(0:1), ncol(srs)), names(srs))
+bb_mokken_h(
+  srs, item_type = "ordinal", supports = binary_supports,
+  cluster = rep(1:25, length.out = nrow(srs)),
+  cluster_target = "respondent", weight_law = "hierarchical_cluster",
+  draws = 200, seed = 1
+)
+```
+
+**Polytomous items with the independent-respondent law.** If you have clusters,
+use them; if you do not, `bb_mokken_h()` has nothing to resample at the upper
+stage:
+
+```{r cross-ordinal, error = TRUE}
+bb_mokken_h(classroom_wb[, items], item_type = "ordinal", supports = sup,
+            weight_law = "iid_respondent", draws = 200, seed = 1)
+```
+
+**Omitting `cluster_target`.** No default exists, by design:
+
+```{r no-target, error = TRUE}
+bb_mokken_h(classroom_wb[, items], item_type = "ordinal", supports = sup,
+            cluster = as.character(classroom_wb$class_id),
+            weight_law = "hierarchical_cluster", draws = 200, seed = 1)
+```
+
+**A cluster vector out of step with the data.** `cluster` is matched by
+position, so it must be as long as the data frame has rows and ordered the same
+way. Subsetting the data without subsetting the cluster vector is the usual
+cause, and it produces a silent misalignment rather than an error — check
+`bm_cluster_info()` against what you expect.
+
+**Singleton clusters.** A classroom with one pupil contributes no within-cluster
+variation. `bm_check_data()` reports them; decide deliberately whether they
+belong in the analysis.
+
+## Where to go next
+
+- `vignette("a4-reporting-and-exporting")` — reporting two targets without
+  implying one is the answer.
+- `vignette("m4-hierarchical-bb-targets")` — the two estimands, the two-stage
+  bootstrap, and why the correction reverses direction.
+- `vignette("m3-polytomous-transport")` — how the polytomous denominator is
+  computed exactly.

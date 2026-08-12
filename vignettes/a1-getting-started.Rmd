@@ -1,0 +1,165 @@
+---
+title: "Getting started"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+source("_setup.R")
+```
+
+Mokken scale analysis asks whether a fixed set of items behaves as a scale, and
+answers with a scalability coefficient $H$. That coefficient is almost always
+reported as a bare number. A paper says $H = 0.42$ and moves on, and the reader
+has no way to tell whether a second sample from the same population would have
+produced $0.41$ or $0.33$.
+
+The number is an estimate, so it has sampling uncertainty like any other, and
+the size of that uncertainty is not obvious from the point estimate. This
+package supplies an interval for $H$ whose coverage was checked in large
+prespecified simulations rather than assumed. That is the whole of what it
+adds: the coefficient itself is computed exactly as it always was.
+
+## Installation
+
+```r
+# install.packages("remotes")
+remotes::install_github("joonho112/bayesmokken")
+```
+
+## A first analysis
+
+The package ships the Scientific Reasoning Scale: eleven binary items answered
+by 337 respondents.
+
+```{r first, message = FALSE}
+library(bayesmokken)
+
+data(srs)
+fit <- bb_mokken_h(srs, draws = 2000, seed = 1)
+fit
+```
+
+Four things in that call are worth naming.
+
+`srs` is an ordinary data frame of item responses, one row per respondent and
+one column per item. Nothing else belongs in it.
+
+`draws = 2000` sets how many Bayesian-bootstrap replications to take. It
+controls simulation noise in the endpoints, not the width of the interval; a
+larger number gives a more stable answer to the same question. Two thousand is
+enough for a first look.
+
+`seed = 1` makes the result exactly reproducible. Every stochastic function in
+this package requires a seed and records it.
+
+The printed block shows the estimate, the interval, and — on the line beneath —
+the *uncorrected* interval and the factor applied to it. Both are always shown,
+so the correction is never invisible.
+
+For this scale that factor is `r fmt_h(fit$interval$width_multiplier, 4)`,
+which widens the interval by `r fmt_width_change(fit$interval)`. The correction
+is deliberately small. It exists because the uncorrected interval was found to
+be slightly too narrow, and it was fixed at a size measured in simulation
+rather than chosen for effect.
+
+## Reading the result
+
+The printed output is for looking at. For anything else, extract data frames.
+
+```{r extract}
+bm_scale_h(fit)
+```
+
+```{r items}
+head(bm_item_h(fit), 4)
+```
+
+Item coefficients describe each item's contribution to the declared scale. They
+are computed from sums of covariances, not by averaging that item's pair
+coefficients — a distinction that matters, and one that
+`vignette("m1-foundations")` works through.
+
+Item-level intervals are available but are **not** shown by default:
+
+```{r items-interval}
+head(bm_item_h(fit, include_interval = TRUE), 3)
+```
+
+The `interval_calibration` column reads `uncalibrated` in every row, and that
+label is doing real work. The width correction was validated for the scale
+coefficient only. Item-level endpoints are honest uncorrected bootstrap
+quantiles, and this package will not silently imply they carry the same
+guarantee.
+
+## A first figure
+
+```{r fig-scale, fig.alt = "Scalability coefficient for the eleven-item Scientific Reasoning Scale, shown as a point with its ninety-five percent confidence interval, against conventional descriptive landmarks at 0.3, 0.4 and 0.5."}
+bm_plot_scale_h(fit)
+```
+
+The dashed guides are the conventional landmarks of the Mokken tradition. They
+are drawn because readers expect them, and they are drawn as reference lines
+rather than as thresholds, because nothing in this package treats them as
+decision rules.
+
+To see where the interval came from, plot the bootstrap distribution itself:
+
+```{r fig-draws, fig.alt = "Distribution of the scalability coefficient across two thousand Bayesian-bootstrap draws, with the uncorrected and corrected interval endpoints marked beneath it."}
+bm_plot_draws(fit)
+```
+
+Every figure is a `ggplot` object, so anything you already know about ggplot2
+applies. `vignette("a5-visualization-cookbook")` covers the other six.
+
+## What this interval is not
+
+The interval is a repeated-sampling confidence interval. The Bayesian bootstrap
+is the machinery that produces it, and the name misleads if it is read as a
+statement about the output. Concretely:
+
+- It is **not** a posterior credible interval, and the draws are not a
+  posterior distribution over $H$.
+- It carries **no** statement of the form "the probability that $H$ exceeds
+  0.3". The package computes no such quantity, at any level.
+- It does **not** account for having chosen these items. The scale is treated
+  as fixed and declared in advance; see
+  `vignette("m1-foundations")`.
+- It describes **this** set of items. Dropping an item and refitting defines a
+  different analysis, and the interval does not carry over to it.
+
+`bm_benchmark()` will place an estimate against the conventional landmarks, and
+its output contains no verdict:
+
+```{r benchmark}
+bm_benchmark(fit)
+```
+
+For this scale the point estimate is arithmetically below each displayed
+landmark. The interval is not used to classify or test those descriptive
+guides. Whether an eleven-item reasoning test *should* form a strong Mokken
+scale is a substantive question about the instrument, which is yours and not
+the software's.
+
+## Where to go next
+
+Your data determines the path.
+
+- **Binary items, one sample.** `vignette("a2-binary-srs-workflow")` runs the
+  full workflow on these data, from screening to a reportable table.
+- **Polytomous items, respondents nested in clusters** — pupils in classrooms,
+  patients in clinics. `vignette("a3-clustered-polytomous-workflow")`. That
+  path is genuinely different: a different estimand, a different bootstrap, and
+  a correction that runs the other way.
+- **Writing up results.** `vignette("a4-reporting-and-exporting")`.
+- **How any of this works.** `vignette("m1-foundations")` starts the
+  methodological track.
+
+If you are unsure whether your data are ready, start by asking:
+
+```{r check}
+bm_check_data(srs)
+```
