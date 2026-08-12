@@ -43,8 +43,18 @@ streams while the documentation promised an integer. It now refuses:
 bb_mokken_h(srs, draws = 200, seed = 1.5)
 ```
 
-**Binary numeric draws are batch-invariant.** With a fixed seed, changing the
-binary engine's batch size does not change its pair, item, or scale draws.
+**Binary numeric draws are batch-invariant to within floating-point
+accumulation order.** With a fixed seed, changing the binary engine's batch
+size does not change which respondent weights are drawn, so the pair, item and
+scale draws agree. The agreement is bit-for-bit on most platforms, but the
+batch partition does change the order in which the weighted sums accumulate,
+and floating-point addition is not associative. The check below therefore
+reports the largest disagreement rather than demanding bit equality: a real
+batching defect would move the draws by far more than the last bits of a
+double.
+
+Bit-for-bit reproducibility is guaranteed for the case that matters — the same
+seed, the same batch size, the same platform.
 
 **Metamorphic/invariant check — change the batch partition while holding seed
 and requested draws fixed.**
@@ -53,19 +63,24 @@ and requested draws fixed.**
 a <- bb_mokken_h(srs, draws = 1000, seed = 7, batch_size = 250, warn = FALSE)
 b <- bb_mokken_h(srs, draws = 1000, seed = 7, batch_size = 97,  warn = FALSE)
 
-stopifnot(
-  identical(a$draws$scale, b$draws$scale),
-  identical(a$draws$item, b$draws$item),
-  identical(a$draws$pair, b$draws$pair)
-)
-data.frame(
+batch_check <- data.frame(
   level = c("scale", "item", "pair"),
-  identical_draws = c(
+  bit_identical = c(
     identical(a$draws$scale, b$draws$scale),
-    identical(a$draws$item, b$draws$item),
-    identical(a$draws$pair, b$draws$pair)
+    identical(a$draws$item,  b$draws$item),
+    identical(a$draws$pair,  b$draws$pair)
+  ),
+  max_abs_difference = c(
+    max(abs(as.numeric(a$draws$scale) - as.numeric(b$draws$scale))),
+    max(abs(as.numeric(a$draws$item)  - as.numeric(b$draws$item))),
+    max(abs(as.numeric(a$draws$pair)  - as.numeric(b$draws$pair)))
   )
 )
+batch_check
+
+# Far tighter than any batching defect could hide under, far looser than
+# demanding that two accumulation orders round identically.
+stopifnot(all(batch_check$max_abs_difference < 1e-12))
 ```
 
 The `workers` argument currently records a request but both binary and
