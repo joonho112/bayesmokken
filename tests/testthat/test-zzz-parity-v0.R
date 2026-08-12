@@ -38,9 +38,22 @@ test_that("v1 reproduces v0 exactly on all eight parity fixtures", {
   ref <- readRDS(file.path(parity_dir, "v0-reference.rds"))
   fixtures <- bm_parity_fixtures()
 
-  # tolerance = 0: identical doubles, not "close enough".
+  # Numeric fields are compared at 1e-12, not at tolerance = 0.
+  #
+  # The reference was computed on one machine. Summation order in the engine is
+  # fixed, but the platform's floating-point arithmetic is not: the same code
+  # on Linux and Windows lands ~1e-16 away from the macOS reference. Demanding
+  # bit equality therefore made this gate pass only where the reference was
+  # built, which is the one place it proves least.
+  #
+  # 1e-12 is roughly ten thousand times the observed platform noise and far
+  # below anything an actual engine change could produce -- a different
+  # denominator, a different weight law or a different quantile type moves
+  # these numbers in the third or fourth decimal, not the twelfth. Hashes and
+  # policy strings are still compared exactly, below, because those are
+  # bit-comparable everywhere.
   exact <- function(new, old, what) {
-    testthat::expect_equal(new, old, tolerance = 0, info = what)
+    testthat::expect_equal(new, old, tolerance = 1e-12, info = what)
   }
 
   for (id in names(ref)) {

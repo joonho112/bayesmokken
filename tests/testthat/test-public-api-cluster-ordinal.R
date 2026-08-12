@@ -155,8 +155,13 @@ test_that("cluster BB is invariant to batch size and requested workers", {
   )
   a <- do.call(bb_mokken_h, c(arguments, list(batch_size = 11, workers = 1)))
   b <- do.call(bb_mokken_h, c(arguments, list(batch_size = 80, workers = 32)))
-  expect_identical(a$draws, b$draws)
-  expect_identical(a$interval, b$interval)
+  # The batch partition changes the order in which the weighted sums
+  # accumulate, and floating-point addition is not associative. The draws are
+  # bit-identical on some platforms and ~1e-15 apart on others; what the
+  # contract guarantees is that the same weights are drawn, which is what the
+  # draw-identity hash and this tolerance together pin down.
+  expect_equal(a$draws, b$draws, tolerance = 1e-12)
+  expect_equal(a$interval, b$interval, tolerance = 1e-12)
   expect_identical(a$rng$draw_identity_hash, b$rng$draw_identity_hash)
 })
 

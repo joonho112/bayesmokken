@@ -83,7 +83,10 @@ test_that("bm_regularity agrees with binary and ordinal engine objects", {
   binary <- mokken_h(srs, warn = FALSE)
   binary_reg <- bm_regularity(binary)
   binary_reg <- binary_reg[match(names(srs), binary_reg$item), , drop = FALSE]
-  expect_equal(binary_reg$mean_score, unname(colMeans(srs)), tolerance = 1e-15)
+  # The engine accumulates the mean through its weighted-sum path and
+  # colMeans() does not, so the two land ~1e-15 apart on some platforms. The
+  # claim is that they agree, not that two summation orders round alike.
+  expect_equal(binary_reg$mean_score, unname(colMeans(srs)), tolerance = 1e-12)
   expect_identical(binary_reg$min_score, rep(0, ncol(srs)))
   expect_identical(binary_reg$max_score, rep(1, ncol(srs)))
   expect_equal(

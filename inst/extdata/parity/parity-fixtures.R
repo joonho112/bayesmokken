@@ -15,7 +15,26 @@
 #     forbids it), so those fixtures are deterministic-only.
 # =============================================================================
 
-bm_parity_fixtures <- function() {
+bm_parity_fixtures <- function(regenerate = FALSE) {
+  # The fixture inputs are FROZEN, not regenerated.
+  #
+  # They used to be built here from a seed on every run. That silently broke
+  # the gate off macOS: `rbinom()` is not bit-identical across platforms, so
+  # Windows and Linux generated *different response matrices* and the test
+  # compared this engine on one dataset against the v0 engine on another. The
+  # differences it reported were 0.5 against 0.6 in item proportions -- data
+  # differences, not engine differences -- while a real engine change would
+  # have been invisible underneath them.
+  #
+  # Loading the frozen inputs makes the comparison what it always claimed to
+  # be: the same eight datasets through two engines. Pass regenerate = TRUE
+  # only to rebuild the frozen file, and re-baseline the reference with it.
+  frozen <- system.file("extdata", "parity", "parity-inputs.rds",
+                        package = "bayesmokken")
+  if (!regenerate && nzchar(frozen) && file.exists(frozen)) {
+    return(readRDS(frozen))
+  }
+
   # --- helpers -------------------------------------------------------------
   gen_binary <- function(n, j, seed) {
     set.seed(seed, kind = "Mersenne-Twister", normal.kind = "Inversion")
