@@ -176,8 +176,8 @@ test_that("classroom ordinal regularity is finite and plots category shares", {
     cluster_target = "respondent",
     warn = FALSE
   )
-  expect_identical(fit$estimand$weight_law, "hierarchical_cluster")
-  expect_identical(fit$provenance$weight_law, "hierarchical_cluster")
+  expect_identical(fit$estimand$weight_law, "complete_record")
+  expect_identical(fit$provenance$weight_law, "complete_record")
   reg <- bm_regularity(fit)
   expect_true(all(is.finite(reg$mean_score)))
   expect_true(all(is.finite(reg$min_score)))

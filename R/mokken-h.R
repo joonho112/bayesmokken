@@ -59,9 +59,14 @@
 #'   argument must therefore be declared whenever `cluster` is supplied. The
 #'   choice is yours to make and to report. See
 #'   [bm_cluster_info()].
-#' @param weight_law Weight-law declaration: `"auto"`, `"iid_respondent"` or
-#'   `"hierarchical_cluster"`. Deterministic clustered analysis records
-#'   `"hierarchical_cluster"` as provenance.
+#' @param weight_law Weight-law declaration: `"auto"`, `"iid_respondent"`,
+#'   `"complete_record"` or `"hierarchical_cluster"`. With `cluster`, `"auto"`
+#'   resolves to `"complete_record"`, the complete-record Bayesian bootstrap
+#'   of the clustered article's current version; `"hierarchical_cluster"` is
+#'   the two-stage law of version 0.9.0, kept only for reproducing earlier
+#'   results and warned about by [bb_mokken_h()]. The deterministic
+#'   coefficient does not depend on the law; a clustered `mokken_h()` call
+#'   records the resolved law as provenance.
 #'
 #' @return An object of class `bm_empirical_h`, with `pair`, `item` and `scale`
 #'   tables, an `estimand` block recording exactly what was estimated, and a
@@ -84,7 +89,7 @@
 #'          supports = bm_supports(classroom_wb, items = items),
 #'          cluster = classroom_wb$class_id,
 #'          cluster_target = "respondent",
-#'          weight_law = "hierarchical_cluster")
+#'          weight_law = "complete_record")
 #' }
 #'
 #' @family bayesmokken-estimation
@@ -106,7 +111,8 @@ mokken_h <- function(data,
                      cluster = NULL,
                      cluster_target = c("respondent", "equal_cluster"),
                      weight_law = c(
-                       "auto", "iid_respondent", "hierarchical_cluster"
+                       "auto", "iid_respondent", "complete_record",
+                       "hierarchical_cluster"
                      )) {
   .bm_require_cluster_target(cluster, missing(cluster_target))
   if (!is.logical(warn) || length(warn) != 1L || is.na(warn)) {
@@ -163,7 +169,8 @@ mokken_h <- function(data,
       cluster_target = mode$cluster_target,
       zero_tol = zero_tol,
       eta = eta,
-      warn = warn
+      warn = warn,
+      weight_law = mode$weight_law
     ))
   }
 

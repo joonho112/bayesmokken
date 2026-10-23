@@ -58,7 +58,7 @@ test_that("the locked width multipliers follow their published formulas", {
   expect_equal(raw$interval$gamma, 0, tolerance = 0)
 })
 
-test_that("the clustered multiplier shrinks and uses -1.5/sqrt(G)", {
+test_that("the historical clustered multiplier shrinks and uses -1.5/sqrt(G)", {
   itv <- bayesmokken:::.bm_cluster_interval_from_draws(
     bb_draws = seq(0.4, 0.8, length.out = 500), point_estimate = 0.6,
     n_complete = 614L,
@@ -75,6 +75,36 @@ test_that("the clustered multiplier shrinks and uses -1.5/sqrt(G)", {
   expect_identical(itv$validation_status, "CONFIRMED_CLUSTER_COUNT")
   expect_identical(itv$validated_cluster_min, 22L)
   expect_identical(itv$validated_cluster_max, 80L)
+})
+
+test_that("the complete-record multiplier is the prespecified k_G, not a tuned constant", {
+  draws <- seq(0.4, 0.8, length.out = 500)
+  for (G in c(22L, 30L, 80L, 320L)) {
+    itv <- bayesmokken:::.bm_crbb_interval_from_draws(
+      bb_draws = draws, point_estimate = 0.6, n_complete = 614L,
+      cluster_count = G, cluster_target = "respondent",
+      interval = "calibrated", level = 0.95
+    )
+    expect_identical(
+      itv$width_multiplier,
+      sqrt((G + 1) / (G - 1)) * stats::qt(0.975, G - 1) / stats::qnorm(0.975)
+    )
+    expect_identical(itv$root_multiplier, itv$width_multiplier)
+    expect_gt(itv$width_multiplier, 1)
+    expect_true(is.na(itv$gamma))
+    expect_identical(itv$multiplier_formula,
+                     "sqrt((G + 1) / (G - 1)) * qt(0.975, G - 1) / qnorm(0.975)")
+  }
+  # Reflection about the point estimate, not midpoint scaling.
+  itv <- bayesmokken:::.bm_crbb_interval_from_draws(
+    bb_draws = draws, point_estimate = 0.55, n_complete = 614L,
+    cluster_count = 30L, cluster_target = "respondent"
+  )
+  k <- itv$width_multiplier
+  expect_equal(itv$lower, 0.55 - k * (itv$raw_upper - 0.55))
+  expect_equal(itv$upper, 0.55 - k * (itv$raw_lower - 0.55))
+  expect_false(isTRUE(all.equal((itv$lower + itv$upper) / 2,
+                                (itv$raw_lower + itv$raw_upper) / 2)))
 })
 
 test_that("frozen policy fields are unchanged", {

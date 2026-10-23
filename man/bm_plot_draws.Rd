@@ -31,9 +31,11 @@ A ggplot object.
 }
 \description{
 Shows the distribution of the Bayesian-bootstrap draws of the scale
-coefficient, with the uncorrected quantiles and the calibrated endpoints
-drawn over it. This is the picture of what the method does: resample, take
-quantiles, apply the frozen width correction.
+coefficient, with the uncorrected quantiles and the reported endpoints
+drawn over it. This is the picture of what the method does: reweight, take
+quantiles, apply the frozen construction (a width correction on the binary
+path; reflection about the point estimate and the expansion by \eqn{k_G}
+on the default clustered path).
 }
 \examples{
 fit <- bb_mokken_h(srs, draws = 200, seed = 1)

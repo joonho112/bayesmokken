@@ -86,16 +86,20 @@ fit_c <- bb_mokken_h(
   supports       = bm_supports(classroom_wb, items = items),
   cluster        = as.character(classroom_wb$class_id),
   cluster_target = "respondent",             # or "equal_cluster" -- no default
-  weight_law     = "hierarchical_cluster",
+  weight_law     = "complete_record",
   draws          = 2000,
   seed           = 1
 )
-bm_interval(fit_c)[c("point_estimate", "lower", "upper", "width_multiplier")]
+bm_interval(fit_c)[c("point_estimate", "raw_lower", "raw_upper",
+                     "lower", "upper", "width_multiplier")]
 ```
 
-Note the multiplier is below 1 here. For binary scales the correction *widens*
-the interval; for clustered ones it *narrows* it. The two repair opposite
-defects in two different procedures.
+Whole classrooms are reweighted and their contents left alone; the quantiles
+of the draws are then reflected about the point estimate and expanded by a
+factor that depends on the number of clusters (here 30), which is why the
+reported interval does not share the raw interval's midpoint. The two-stage
+procedure of version 0.9.0 remains available as
+`weight_law = "hierarchical_cluster"`, as an explicitly historical option.
 
 ## What it does, and what it does not
 
@@ -105,7 +109,7 @@ defects in two different procedures.
 | Two population targets for clustered data, declared explicitly | Choose a target for you; `cluster_target` has no default |
 | Exact polytomous denominators by finite comonotone transport | Approximate them |
 | Report where an estimate sits against conventional landmarks | Tell you whether the scale is good enough |
-| Refuse calibrated clustered fits below 22 clusters; mark counts above 80 as extrapolated | Present an above-80 extrapolation as confirmed evidence |
+| Compute the clustered interval for any two or more clusters and say whether the count lies inside the confirmed 22--320 range | Present a count outside that range as confirmed evidence |
 | Item- and pair-level intervals, labelled uncalibrated | Imply they carry the scale-level guarantee |
 | Treat the item set as fixed and declared | Select items, or propagate selection uncertainty |
 
@@ -137,7 +141,7 @@ detecting drift, but it is not presented as an independent derivation.
 | [m1 · Foundations](https://joonho112.github.io/bayesmokken/articles/m1-foundations.html) | what is being estimated |
 | [m2 · Bootstrap and calibration](https://joonho112.github.io/bayesmokken/articles/m2-bayesian-bootstrap-calibration.html) | the binary interval |
 | [m3 · Polytomous transport](https://joonho112.github.io/bayesmokken/articles/m3-polytomous-transport.html) | the exact denominator |
-| [m4 · Hierarchical BB and targets](https://joonho112.github.io/bayesmokken/articles/m4-hierarchical-bb-targets.html) | the clustered interval |
+| [m4 · Complete-record BB and targets](https://joonho112.github.io/bayesmokken/articles/m4-hierarchical-bb-targets.html) | the clustered interval |
 | [m5 · Reproducibility and evidence](https://joonho112.github.io/bayesmokken/articles/m5-reproducibility-and-evidence.html) | why you can believe it |
 
 ## Citation

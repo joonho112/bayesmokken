@@ -19,7 +19,9 @@ A one-row data frame: \code{H}, \code{lower}, \code{upper}, \code{level}, \code{
 \description{
 Returns the scale-level coefficient as a one-row data frame, with the
 interval when the object has one. This is the level, and the only level, at
-which the width calibration of this package has been validated.
+which the interval constructions of this package have been validated.
+\code{raw_lower} and \code{raw_upper} are always the uncorrected percentile
+quantiles; \code{lower} and \code{upper} are the reported endpoints.
 }
 \examples{
 fit <- bb_mokken_h(srs, draws = 200, seed = 1)

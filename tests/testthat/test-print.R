@@ -26,8 +26,18 @@ clu_fit <- function(target = "respondent", draws = 300) {
   bb_mokken_h(classroom_wb[, items], item_type = "ordinal",
               supports = bm_supports(classroom_wb, items = items),
               cluster = as.character(classroom_wb$class_id),
-              cluster_target = target, weight_law = "hierarchical_cluster",
-              draws = draws, seed = 1, warn = FALSE)
+              cluster_target = target, draws = draws, seed = 1, warn = FALSE)
+}
+clu_two_stage_fit <- function(target = "respondent", draws = 300) {
+  items <- paste0("wb", 1:6)
+  suppressWarnings(
+    bb_mokken_h(classroom_wb[, items], item_type = "ordinal",
+                supports = bm_supports(classroom_wb, items = items),
+                cluster = as.character(classroom_wb$class_id),
+                cluster_target = target, weight_law = "hierarchical_cluster",
+                draws = draws, seed = 1, warn = FALSE),
+    classes = "bm_historical_method_warning"
+  )
 }
 
 # --- snapshots ----------------------------------------------------------------
@@ -42,6 +52,13 @@ test_that("clustered fit prints as designed", {
   skip_if_not_installed("withr")
   local_console()
   expect_snapshot(print(clu_fit()))
+})
+
+test_that("historical two-stage fit prints as designed", {
+  skip_if_not_installed("withr")
+  local_console()
+  expect_snapshot(print(clu_two_stage_fit()))
+  expect_snapshot(print(clu_two_stage_fit()$interval))
 })
 
 test_that("deterministic fit prints as designed", {
@@ -107,18 +124,31 @@ test_that("clustered prints separate numerical and validation status", {
     out <- paste(utils::capture.output(print(obj)), collapse = "\n")
     expect_match(out, "status: OK|status  OK|CONFIRMED_CLUSTER_COUNT")
     expect_match(out, "CONFIRMED_CLUSTER_COUNT")
+    expect_match(out, "22-320")
+    expect_match(out, "COMPLETE_RECORD")
+  }
+  historical <- clu_two_stage_fit()
+  for (obj in list(historical, summary(historical), historical$interval)) {
+    out <- paste(utils::capture.output(print(obj)), collapse = "\n")
     expect_match(out, "22-80")
+    expect_match(out, "HIERARCHICAL")
   }
 })
 
-test_that("the binary correction widens and the clustered one narrows", {
+test_that("the binary correction widens, the adjustment expands, the historical shrinks", {
   local_console()
   b <- paste(utils::capture.output(print(bin_fit())), collapse = "\n")
   cl <- paste(utils::capture.output(print(clu_fit())), collapse = "\n")
+  hs <- paste(utils::capture.output(print(clu_two_stage_fit())), collapse = "\n")
   b_mult <- as.numeric(sub(".*width x ([0-9.]+).*", "\\1", b))
   c_mult <- as.numeric(sub(".*width x ([0-9.]+).*", "\\1", cl))
+  h_mult <- as.numeric(sub(".*width x ([0-9.]+).*", "\\1", hs))
   expect_gt(b_mult, 1)
-  expect_lt(c_mult, 1)
+  expect_gt(c_mult, 1)
+  expect_match(cl, "reflected about H", fixed = TRUE)
+  expect_match(cl, "complete-record Bayesian bootstrap", fixed = TRUE)
+  expect_lt(h_mult, 1)
+  expect_match(hs, "historical", fixed = TRUE)
 })
 
 test_that("item intervals are absent by default and cautioned when requested", {

@@ -1,4 +1,4 @@
-#' bayesmokken: calibrated Bayesian-bootstrap intervals for Mokken scalability
+#' bayesmokken: Bayesian-bootstrap confidence intervals for Mokken scalability
 #'
 #' Mokken scale analysis summarizes whether a fixed set of items forms a scale
 #' using the scalability coefficient \eqn{H}. In practice \eqn{H} is usually
@@ -16,15 +16,22 @@
 #'
 #' **Polytomous items, respondents nested in clusters.** The coefficient is
 #' computed exactly under arbitrary weights by finite comonotone transport.
-#' Uncertainty comes from a two-stage hierarchical Bayesian bootstrap over
-#' clusters and then respondents, and the interval is *narrowed* by
-#' \eqn{1 - 1.5/\sqrt{G}}, because the uncorrected hierarchical interval was
-#' measured to be substantially too wide in the confirmation design. The
-#' confirmed cluster-count envelope is \eqn{22 \le G \le 80}; results outside
-#' that envelope are not described as confirmed.
+#' Uncertainty comes from a complete-record Bayesian bootstrap: one Dirichlet
+#' weight per cluster record, nothing reweighted inside a record, so that the
+#' draws follow the first-order sampling law of the coefficient when clusters
+#' are the independent units. The interval reflects the draw quantiles about
+#' the point estimate and expands the reflected errors by
+#' \eqn{k_G = \sqrt{(G+1)/(G-1)}\, t_{G-1,.975}/z_{.975}}, a prespecified
+#' function of the number of clusters. The confirmation covered cluster counts
+#' from 22 to 320; the interval is computable for any \eqn{G \ge 2} and says
+#' on the result whether \eqn{G} lies inside that range.
 #'
-#' The two corrections run in opposite directions. [bm_plot_calibration()]
-#' shows why in one figure.
+#' The two-stage hierarchical bootstrap of version 0.9.0, which reweighted
+#' respondents within clusters as well and narrowed its interval by
+#' \eqn{1 - 1.5/\sqrt{G}}, is still available as
+#' `weight_law = "hierarchical_cluster"`. It is historical: the within-cluster
+#' stage adds first-order variance that no multiplier tending to one can
+#' remove. [bm_plot_calibration()] draws the three multiplier curves.
 #'
 #' @section A five-line start:
 #' ```r
@@ -32,7 +39,7 @@
 #' bm_check_data(srs)                            # what does the package see?
 #' fit <- bb_mokken_h(srs, draws = 2000, seed = 1)
 #' fit                                           # the result and its interval
-#' bm_plot_draws(fit)                            # what the correction did
+#' bm_plot_draws(fit)                            # what the construction did
 #' ```
 #'
 #' @section Two population targets, when data are clustered:
@@ -50,16 +57,18 @@
 #' - It reports no threshold probabilities. There is no `P(H > .3)` here.
 #' - It performs no item selection and propagates no scale-selection
 #'   uncertainty. The item set is fixed by you, before the analysis.
-#' - It exposes no tuning constant. \eqn{\gamma} and \eqn{\kappa} were fixed by
-#'   a frozen train-validate-lock procedure, and coverage at any other value is
-#'   simply unknown. `level` is 95% and nothing else.
+#' - It exposes no tuning constant. \eqn{\gamma} was fixed by a frozen
+#'   train-validate-lock procedure, \eqn{k_G} is a prespecified function of
+#'   the cluster count, and coverage at any other value is simply unknown.
+#'   `level` is 95% and nothing else.
 #' - It offers no verdict on whether a scale is any good. `bm_benchmark()`
 #'   reports where an estimate sits relative to the conventional landmarks and
 #'   stops there.
 #'
 #' `bm_guardrails()` lists the situations in which the package refuses to
-#' compute, and one situation in which it computes but you should know it is
-#' outside the validated range.
+#' compute, and the situations in which it computes but you should know that
+#' the result lies outside the confirmed range or uses the historical
+#' procedure.
 #'
 #' @section Where to start:
 #'
@@ -168,16 +177,26 @@ NULL
 #' quantiles as sampling-uncertainty endpoints on the binary path. It is not a
 #' finite-sample coverage theorem, and it does not license a posterior reading.
 #'
-#' @section Clustered empirical warrant:
-#' The clustered path draws one Dirichlet\eqn{(1,\ldots,1)} vector over
-#' clusters and, independently within every cluster, another
-#' Dirichlet\eqn{(1,\ldots,1)} vector over respondents. No conditional
-#' first-order matching theorem is claimed for that hierarchical law. Its
-#' warrant is the target-exact weight construction, numerical diagnostics, and
-#' prespecified held-out simulation confirmation. That confirmation covered
-#' polytomous designs with cluster counts \eqn{G \in \{22,35,55,80\}}; it does
-#' not establish universal coverage for other support structures or cluster
-#' counts.
+#' @section Clustered first-order rationale:
+#' When clusters are the independent sampling units, the first-order sampling
+#' law of the coefficient is driven by the cluster-level influence values, and
+#' the variation of responses inside a sampled cluster is already part of
+#' them. The complete-record law draws one Dirichlet\eqn{(1,\ldots,1)} vector
+#' over the clusters and reweights the records without touching their
+#' contents; conditionally on the data its draws of \eqn{H} have the same
+#' first-order limit as the sampling distribution. A second, independent
+#' Dirichlet reweighting within every cluster, the two-stage law of version
+#' 0.9.0, adds a nonnegative first-order variance term
+#' \eqn{2E\{c^2 v/(M+1)\}} that no deterministic multiplier tending to one can
+#' remove; that law is retained only as the historical option. The percentile
+#' interval of the complete-record draws inherits first-order coverage but
+#' undercovers with few clusters, which is what the finite-cluster adjustment
+#' below repairs. The adjusted interval was selected between two prespecified
+#' candidates on development data, screened once on validation data, and then
+#' confirmed on 41,000 fresh datasets over 21 regular conditions with cluster
+#' counts 22, 30, 35, 55, 80, 160 and 320, where it covered .947 and .949 for
+#' the two targets. That is evidence for those designs, not a universal
+#' theorem for other supports or cluster counts.
 #'
 #' @section What the number is not:
 #'
@@ -189,28 +208,35 @@ NULL
 #' - **Not a predictive distribution.** The draws describe uncertainty about
 #'   the coefficient of the population you sampled, not about future responses.
 #'
-#' @section The width correction:
-#' The raw equal-tailed bootstrap interval is not left alone. Its width is
-#' multiplied by a fixed factor:
+#' @section The constructions:
+#' The raw percentile bootstrap interval \eqn{[q_L, q_U]} is not left alone.
+#' On the binary path its width is multiplied by a fixed factor about its
+#' midpoint:
 #'
-#' \deqn{[m - c\,w,\; m + c\,w], \qquad
-#'   c = 1 + \frac{0.25}{\sqrt{n}} \ \text{(binary)}, \qquad
-#'   c = 1 - \frac{1.5}{\sqrt{G}} \ \text{(clustered)}}
+#' \deqn{[m - c\,w,\; m + c\,w], \qquad c = 1 + \frac{0.25}{\sqrt{n}},}
 #'
 #' where \eqn{m} is the midpoint of the raw interval and \eqn{w} its
-#' half-width. The midpoint never moves, endpoints are never clipped, and no
-#' alternative method is ever substituted for a difficult sample. The
-#' constants were fixed on training data, checked on disjoint held-out
-#' conditions, and then locked; they are not arguments. For the clustered
-#' correction, the confirmed cluster-count envelope is 22--80, and smaller
-#' cluster counts are refused by the calibrated public path.
+#' half-width. On the default clustered path the error quantiles are reflected
+#' about the point estimate \eqn{\hat H} and expanded:
 #'
-#' Both the raw and the corrected endpoints are on every result, and both are
+#' \deqn{[\hat H - k_G (q_U - \hat H),\; \hat H - k_G (q_L - \hat H)]
+#'   \cap (-\infty, 1], \qquad
+#'   k_G = \sqrt{\frac{G+1}{G-1}}\, \frac{t_{G-1,.975}}{z_{.975}}.}
+#'
+#' The center of that reflection is the point estimate, not the midpoint, so
+#' the reported interval need not contain \eqn{\hat H}; an empty intersection
+#' is reported as an empty set, never as \eqn{[1, 1]}, and negative values are
+#' retained. The historical clustered path narrowed the raw interval about its
+#' midpoint by \eqn{c = 1 - 1.5/\sqrt{G}}. The constants and the construction
+#' are not arguments, and no alternative method is ever substituted for a
+#' difficult sample.
+#'
+#' Both the raw and the reported endpoints are on every result, and both are
 #' drawn by [bm_plot_draws()], so you can always see exactly what the
-#' correction did.
+#' construction did.
 #'
 #' @section Only the scale coefficient is calibrated:
-#' The correction was developed and validated for the **scale-level**
+#' The constructions were developed and validated for the **scale-level**
 #' coefficient. Item- and pair-level draws are available and useful, but their
 #' coverage has never been checked. The package reports them as raw quantiles,
 #' labels them `uncalibrated`, and draws them dashed and faded. Treat them as
@@ -218,8 +244,9 @@ NULL
 #' same standing as the scale interval.
 #'
 #' @section How many draws:
-#' The frozen default is 2,000. Whether that is enough for your data is an
-#' empirical question about Monte Carlo error, which
+#' The frozen default is 2,000; the clustered article fixed 9,999 for its
+#' application and its confirmation. Whether a count is enough for your data
+#' is an empirical question about Monte Carlo error, which
 #' [bm_mc_diagnostics()] and [bm_plot_mc_stability()] answer.
 #'
 #' @name bayesmokken-intervals
@@ -259,19 +286,27 @@ NULL
 #'   \item{denominator status}{`positive`, `near_zero` or `zero`. Anything but
 #'     `positive` means the coefficient is unstable or undefined there.}
 #'   \item{weight law}{How random weights are generated: `iid_respondent` for
-#'     the binary path, `hierarchical_cluster` for the two-stage clustered
-#'     path.}
+#'     the binary path, `complete_record` for the default clustered path (one
+#'     Dirichlet weight per cluster record), `hierarchical_cluster` for the
+#'     historical two-stage clustered path.}
+#'   \item{complete record}{A cluster together with every complete-scale
+#'     response in it. The default clustered law treats these records as the
+#'     independent sampling units and never perturbs the weights inside one.}
 #'   \item{cluster target}{`respondent` or `equal_cluster`. See
 #'     `?bayesmokken-estimands`.}
+#'   \item{reflected endpoints}{On the default clustered path, the quantiles of
+#'     the draws reflected about the point estimate and expanded by
+#'     \eqn{k_G}, before the intersection with \eqn{(-\infty, 1]}. Kept on the
+#'     result as `reflected_lower` and `reflected_upper`.}
 #'   \item{method identifier}{A frozen string such as
-#'     `P7-FS-WIDTH-RAW-G025-v1` recording exactly which procedure produced an
-#'     interval. It travels with the result, so an archived object is
-#'     self-describing.}
+#'     `P7-FS-WIDTH-RAW-G025-v1` or `V5-C2-CRBB-ADJUSTED-RESP-v1` recording
+#'     exactly which procedure produced an interval. It travels with the
+#'     result, so an archived object is self-describing.}
 #'   \item{defined draws}{Bootstrap draws for which the coefficient is finite.
 #'     Undefined draws are retained in the stored arrays and counted, never
 #'     quietly discarded.}
-#'   \item{uncalibrated}{Marks an interval to which the validated width
-#'     correction was not applied, because it was validated only for the scale
+#'   \item{uncalibrated}{Marks an interval to which the validated construction
+#'     was not applied, because it was validated only for the scale
 #'     coefficient. Applies to every item- and pair-level interval.}
 #' }
 #'

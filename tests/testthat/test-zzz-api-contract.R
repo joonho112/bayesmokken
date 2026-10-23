@@ -51,6 +51,11 @@ test_that("published defaults are unchanged", {
   expect_identical(eval(f$interval), c("calibrated", "equal_tail"))
   expect_identical(eval(f$item_type), c("auto", "binary", "ordinal"))
   expect_identical(eval(f$cluster_target), c("respondent", "equal_cluster"))
+  # 0.10.0 added a value; the published values and their order are kept.
+  expect_identical(
+    eval(f$weight_law),
+    c("auto", "iid_respondent", "complete_record", "hierarchical_cluster")
+  )
 
   g <- formals(mokken_h)
   expect_identical(g$missing, "complete_scale")
@@ -128,13 +133,37 @@ test_that("the call form printed in Paper A still runs unchanged", {
   expect_identical(fit$interval$method_id, "P7-FS-WIDTH-RAW-G025-v1")
 })
 
-test_that("the call form printed in Paper B still runs unchanged", {
+test_that("the call form printed in Paper B v3 still runs, as the historical lane", {
   d <- clu_data()
-  fit <- bb_mokken_h(d$x, item_type = "ordinal", supports = d$supports,
-                     cluster = d$cluster, cluster_target = "respondent",
-                     weight_law = "hierarchical_cluster",
-                     draws = 200, seed = 1, interval = "calibrated")
+  # The earlier version's printed call declares the two-stage law explicitly.
+  # It must keep running and keep producing that version's identifiers; what
+  # changed in 0.10.0 is that it now says so with a typed warning.
+  expect_warning(
+    fit <- bb_mokken_h(d$x, item_type = "ordinal", supports = d$supports,
+                       cluster = d$cluster, cluster_target = "respondent",
+                       weight_law = "hierarchical_cluster",
+                       draws = 200, seed = 1, interval = "calibrated"),
+    class = "bm_historical_method_warning"
+  )
   expect_identical(fit$interval$method_id, "V4-P15-HBB-RESP-GN150-v1")
+  expect_identical(fit$interval$construction, "midpoint_halfwidth_scaling")
+})
+
+test_that("the call form of the clustered article's current version runs on the default lane", {
+  d <- clu_data()
+  expect_no_warning(
+    fit <- bb_mokken_h(d$x, item_type = "ordinal", supports = d$supports,
+                       cluster = d$cluster, cluster_target = "respondent",
+                       draws = 200, seed = 1, warn = FALSE)
+  )
+  expect_identical(fit$interval$method_id, "V5-C2-CRBB-ADJUSTED-RESP-v1")
+  expect_identical(fit$sampling$weight_law, "complete_record")
+  explicit <- bb_mokken_h(d$x, item_type = "ordinal", supports = d$supports,
+                          cluster = d$cluster, cluster_target = "respondent",
+                          weight_law = "complete_record",
+                          draws = 200, seed = 1, warn = FALSE)
+  expect_identical(explicit$draws$scale, fit$draws$scale)
+  expect_identical(explicit$interval, fit$interval)
 })
 
 test_that("declarations the articles call mandatory are refused when omitted", {
@@ -185,7 +214,7 @@ test_that("the two analysis paths cannot be crossed, as both articles state", {
   }
 })
 
-test_that("the calibrated clustered interval refuses its unvalidated range", {
+test_that("the historical clustered interval refuses its unvalidated range; the default does not", {
   d <- clu_data()
   keep <- classroom_wb$class_id %in% levels(classroom_wb$class_id)[1:10]
   small <- classroom_wb[keep, ]
@@ -195,24 +224,33 @@ test_that("the calibrated clustered interval refuses its unvalidated range", {
                cluster_target = "respondent",
                weight_law = "hierarchical_cluster",
                draws = 200, seed = 1, warn = FALSE)
-  # G = 10 is below the confirmed range: calibrated must refuse. The package
-  # separates SCOPE errors (wrong kind of data, e.g. path crossing) from RANGE
-  # errors (right kind of data, cluster count outside the confirmed grid); this
-  # is the latter.
-  expect_error(do.call(bb_mokken_h, c(args, list(interval = "calibrated"))),
+  quiet <- function(expr) {
+    suppressWarnings(expr, classes = "bm_historical_method_warning")
+  }
+  # G = 10 is below the two-stage calibration's confirmed range: that lane
+  # must refuse. The package separates SCOPE errors (wrong kind of data, e.g.
+  # path crossing) from RANGE errors (right kind of data, cluster count
+  # outside the confirmed grid); this is the latter.
+  expect_error(quiet(do.call(bb_mokken_h, c(args, list(interval = "calibrated")))),
                class = "bm_validation_range_error")
-  # ... but the user is not stranded. The deterministic coefficient and the
-  # uncorrected comparator remain available.
   expect_s3_class(do.call(mokken_h, args[1:6]), "bm_empirical_h")
-  raw <- do.call(bb_mokken_h, c(args, list(interval = "equal_tail")))
+  raw <- quiet(do.call(bb_mokken_h, c(args, list(interval = "equal_tail"))))
   expect_identical(raw$interval$validation_status, "NOT_APPLICABLE_EQUAL_TAIL")
+  # The complete-record lane is computable for G >= 2 and reports its
+  # confirmed range as metadata instead of refusing.
+  default_args <- args
+  default_args$weight_law <- NULL
+  expect_no_warning(fit <- do.call(bb_mokken_h, default_args))
+  expect_identical(fit$interval$status, "OK")
+  expect_identical(fit$interval$cluster_count, 10L)
+  expect_identical(fit$interval$validation_status,
+                   "OUTSIDE_CONFIRMED_CLUSTER_COUNT")
 })
 
 test_that("published objects report the quantities their names claim", {
   d <- clu_data()
   fit <- bb_mokken_h(d$x, item_type = "ordinal", supports = d$supports,
                      cluster = d$cluster, cluster_target = "respondent",
-                     weight_law = "hierarchical_cluster",
                      draws = 200, seed = 1, warn = FALSE)
   # n_complete counts respondents; the cluster count has its own field.
   expect_identical(fit$interval$n_complete, nrow(d$x))

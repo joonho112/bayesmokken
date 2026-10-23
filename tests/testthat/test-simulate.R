@@ -49,7 +49,7 @@ test_that("informative_size makes the two cluster targets differ", {
     sup <- stats::setNames(rep(list(1:5), length(items)), items)
     mokken_h(d[, items], item_type = "ordinal", supports = sup,
              cluster = as.character(d$cluster), cluster_target = target,
-             weight_law = "hierarchical_cluster", warn = FALSE)$scale$H
+             weight_law = "complete_record", warn = FALSE)$scale$H
   }
   informative <- bm_simulate(n = 500, n_items = 5, type = "ordinal",
                              clusters = 25, icc = 0.15,
@@ -119,7 +119,7 @@ test_that("classroom_wb keeps the two cluster targets apart", {
   h <- vapply(c("respondent", "equal_cluster"), function(tg) {
     mokken_h(classroom_wb[, items], item_type = "ordinal", supports = sup,
              cluster = as.character(classroom_wb$class_id),
-             cluster_target = tg, weight_law = "hierarchical_cluster",
+             cluster_target = tg, weight_law = "complete_record",
              warn = FALSE)$scale$H
   }, numeric(1))
   expect_gt(abs(diff(h)), 0.005)

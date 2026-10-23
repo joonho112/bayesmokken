@@ -106,6 +106,10 @@
         EXTRAPOLATED_CLUSTER_COUNT = sprintf(
           "G = %d; outside confirmed range %d-%d", g, lo, hi
         ),
+        OUTSIDE_CONFIRMED_CLUSTER_COUNT = sprintf(
+          "G = %d; outside confirmed range %d-%d (computable, not confirmed)",
+          g, lo, hi
+        ),
         BELOW_VALIDATED_CLUSTER_COUNT = sprintf(
           "G = %d; below confirmed range %d-%d", g, lo, hi
         ),

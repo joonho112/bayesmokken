@@ -187,9 +187,11 @@ do instead. The design principle behind them is worth stating plainly: **where
 the software cannot know the answer, it fails rather than defaulting.**
 `cluster_target` has no default because the two targets are different
 questions. `supports` has no default because the denominator depends on it. The
-calibrated interval refuses below 22 clusters because the correction was never
-confirmed there. In each case a default would have been a scientific choice
-made silently on the user's behalf.
+historical two-stage interval refuses below 22 clusters because its shrinkage
+was never confirmed there, and the default clustered interval reports on the
+result whether its cluster count lies inside the confirmed range rather than
+pretending the evidence extends. In each case a default would have been a
+scientific choice made silently on the user's behalf.
 
 ## The validation record
 
@@ -200,34 +202,49 @@ mean length. An influence-function delta-method Wald interval covered
 82.6%–91.8%, and a bias-corrected accelerated construction as little as 71.4%,
 both under a strict regularity screen whose refusals also counted as misses.
 
-**Clustered path.** A fresh 24-cell confirmation crossing 22–80 clusters,
-intraclass correlations of .06–.38, informative-size mechanisms and
-transport-path stress lanes. The calibrated interval covered .974 for both
-targets on the 16-cell regular decision lane, at 75% of the raw width, passing
-all seven prespecified gates. Naive independence bootstrap: .915. Two-level
-delta: .981 at 7% greater length.
+**Clustered path.** A fresh confirmation of 41,000 datasets on 24
+conditions, 21 of them regular, crossing 22–320 clusters, balanced,
+size-dependent and SWMDK-like cluster sizes, latent intraclass correlations
+from 0 to .35, and three stress conditions at or near a population knot. The
+adjusted complete-record interval covered .947 (respondent-weighted) and .949
+(equal-cluster) over the regular conditions; the percentile interval of the
+same draws .935 and .936; the two-stage law of version 0.9.0 .997 raw and
+.977 after its shrinkage; the clustered delta interval .984. All four
+prespecified criteria were established in 36 of 42 condition–target
+assessments, every lower-tail and failure criterion among them.
 
-In both cases the tuning constant was selected on training conditions,
-evaluated once on held-out conditions, and then confirmed prospectively. The
-constant is frozen, and the coverage claim attaches to that value alone.
+The binary constant was selected on training conditions, evaluated once on
+held-out conditions, and then confirmed prospectively. The clustered
+multiplier $k_G$ is a prespecified function of the cluster count, chosen
+between two prespecified candidates on development data, screened once on
+validation data, and then confirmed. Both are frozen, and each coverage claim
+attaches to that construction alone.
 
 ### The software's own checks
 
-The two articles report the test suite of the version that produced their
-results — **665 unit tests** (binary article) and **791 expectations across 24
-files** (clustered article), both in package version 0.0.0.9001. This release
-is larger, because the user-facing surface it adds is itself tested:
+The binary article reports the test suite of the version that produced its
+results, **665 unit tests** in package version 0.0.0.9001; the earlier version
+of the clustered article reported **791 expectations across 24 files** in the
+same package version, and the clustered article's current version computes its
+results in its replication archive and names this package's coefficient kernel.
+This release is larger, because the user-facing surface and the complete-record
+path are themselves tested:
 
 ```{r test-scale, echo = FALSE}
 data.frame(
-  version = c("0.0.0.9001 (the articles' results)", "0.9.0 (this release)"),
-  scale   = c("665 tests / 791 expectations", "2,320 expectations across 42 files")
+  version = c("0.0.0.9001 (the articles' results)", "0.9.0 (previous release)",
+              "0.10.0 (this release)"),
+  scale   = c("665 tests / 791 expectations", "2,320 expectations across 42 files",
+              "280 tests / 3,414 expectations across 48 files")
 )
 ```
 
-The two are not in conflict and the later number does not supersede the
-earlier: the articles' figures describe the version that computed the published
-results, which is the version their claims rest on.
+The numbers are not in conflict and a later one does not supersede an earlier
+one: the articles' figures describe the version that computed the published
+results, which is the version their claims rest on. For the current clustered
+procedure that version is the archive, and this release's
+`test-swmdk-reproduction.R` and the published-number gate tie the package to
+it at the article's own seeds.
 
 What connects the two is the parity gate. It compares eight fixtures field by
 field, at `tolerance = 0`, against a reference produced by 0.0.0.9001, subject
@@ -246,14 +263,16 @@ Six, stated plainly.
 If items were chosen by looking at these data, the interval is too narrow by an
 amount not quantified here.
 
-**The corrections are validated within lanes.** The binary correction was
-confirmed for the scale coefficient of binary items; the clustered correction
-for polytomous items in 22–80 clusters. Item- and pair-level intervals carry no
-correction and say so in their `interval_calibration` column.
+**The constructions are validated within lanes.** The binary correction was
+confirmed for the scale coefficient of binary items; the clustered adjustment
+for polytomous items in 22–320 clusters. Item- and pair-level intervals carry
+no correction and say so in their `interval_calibration` column.
 
-**Small $G$ is genuinely unsupported.** Below 22 clusters the calibrated
-interval is refused rather than extrapolated. The deterministic coefficient and
-the uncorrected comparator remain, and both are honest about claiming less.
+**Small $G$ is computable, not confirmed.** The clustered interval runs for
+two or more clusters, because the arithmetic allows it, and records
+`OUTSIDE_CONFIRMED_CLUSTER_COUNT` below 22 and above 320 because the evidence
+stops there. Nothing in the confirmation says what the interval does with
+five clusters. The historical two-stage lane refuses below 22 instead.
 
 **Non-probability samples.** Everything here concerns repeated sampling from a
 population. If the respondents were not sampled in a way that supports that

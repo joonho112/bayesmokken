@@ -59,7 +59,7 @@ mokken_h(classroom_wb[, items],
          item_type = "ordinal", supports = sup,
          cluster = classroom_wb$class_id,
          cluster_target = "respondent",
-         weight_law = "hierarchical_cluster")
+         weight_law = "complete_record")
 
 }
 \seealso{

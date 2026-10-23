@@ -58,18 +58,24 @@ test_that("v1 reproduces v0 exactly on all eight parity fixtures", {
 
   for (id in names(ref)) {
     old <- ref[[id]]
+    # F7 and F8 declare the two-stage law explicitly, which is the historical
+    # lane since 0.10.0: its numbers are frozen here, and its typed warning is
+    # the documented behaviour, silenced by class for the comparison.
+    quiet <- function(expr) {
+      suppressWarnings(expr, classes = "bm_historical_method_warning")
+    }
     new <- if (identical(id, "F7")) {
-      # F7 is the immutable G = 12 numerical receipt. Public calibrated calls
-      # now fail closed below G = 22, so bypass only the public scope helper in
+      # F7 is the immutable G = 12 numerical receipt. The historical lane
+      # fails closed below G = 22, so bypass only the public scope helper in
       # this test; no production option or engine override is introduced.
-      testthat::with_mocked_bindings(
+      quiet(testthat::with_mocked_bindings(
         bm_parity_evaluate(fixtures[[id]]),
         .bm_validate_cluster_calibration_scope =
           function(...) invisible(NULL),
         .package = "bayesmokken"
-      )
+      ))
     } else {
-      bm_parity_evaluate(fixtures[[id]])
+      quiet(bm_parity_evaluate(fixtures[[id]]))
     }
 
     # --- deterministic engine ---------------------------------------------

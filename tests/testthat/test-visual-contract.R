@@ -6,7 +6,7 @@ visual_contract <- function() {
 
 .visual_binary_fit <- NULL
 .visual_cluster_fit <- NULL
-.visual_extrapolated_fit <- NULL
+.visual_outside_fit <- NULL
 .visual_boundary_fit <- NULL
 
 visual_binary_fit <- function() {
@@ -35,16 +35,18 @@ visual_cluster_fit <- function() {
   .visual_cluster_fit
 }
 
-visual_extrapolated_fit <- function() {
-  if (is.null(.visual_extrapolated_fit)) {
+# A complete-record fit with ten clusters: computable, outside the confirmed
+# 22-320 range, and therefore marked OUTSIDE_CONFIRMED_CLUSTER_COUNT.
+visual_outside_fit <- function() {
+  if (is.null(.visual_outside_fit)) {
     block <- data.frame(
       a = c(0, 1, 2),
       b = c(0, 2, 1),
       c = c(1, 0, 2)
     )
-    data <- block[rep(seq_len(nrow(block)), times = 81L), , drop = FALSE]
-    cluster <- rep(sprintf("g%03d", seq_len(81L)), each = nrow(block))
-    .visual_extrapolated_fit <<- bb_mokken_h(
+    data <- block[rep(seq_len(nrow(block)), times = 10L), , drop = FALSE]
+    cluster <- rep(sprintf("g%03d", seq_len(10L)), each = nrow(block))
+    .visual_outside_fit <<- bb_mokken_h(
       data,
       item_type = "ordinal",
       supports = list(a = 0:2, b = 0:2, c = 0:2),
@@ -55,7 +57,7 @@ visual_extrapolated_fit <- function() {
       warn = FALSE
     )
   }
-  .visual_extrapolated_fit
+  .visual_outside_fit
 }
 
 visual_boundary_fit <- function() {
@@ -116,8 +118,11 @@ visual_mode_runners <- function() {
       clustered_confirmed = function() bm_plot_calibration(
         visual_cluster_fit()
       ),
-      clustered_extrapolated = function() bm_plot_calibration(
-        visual_extrapolated_fit()
+      clustered_outside = function() bm_plot_calibration(
+        visual_outside_fit()
+      ),
+      two_stage_historical = function() bm_plot_calibration(
+        mode = "clustered_two_stage"
       )
     ),
     bm_plot_mc_stability = list(
@@ -244,47 +249,63 @@ test_that("every declared mode constructs its documented geometry", {
 })
 
 test_that("cluster calibration distinguishes confirmation from extrapolation", {
-  spec <- visual_contract()$figures$bm_plot_calibration
-  plot <- bm_plot_calibration(mode = "clustered", range = c(5, 200))
-  built <- ggplot2::ggplot_build(plot)$data
-  line_index <- which(vapply(
-    plot$layers,
-    function(layer) inherits(layer$geom, "GeomLine"),
-    logical(1)
-  ))
-  lines <- built[line_index]
-  solid <- Filter(function(data) all(data$linetype == "solid"), lines)
-  dashed <- Filter(function(data) all(data$linetype == "dashed"), lines)
+  spec <- visual_contract()$figures$bm_plot_calibration$validation
+  curve_lines <- function(plot) {
+    built <- ggplot2::ggplot_build(plot)$data
+    line_index <- which(vapply(
+      plot$layers,
+      function(layer) inherits(layer$geom, "GeomLine"),
+      logical(1)
+    ))
+    lines <- built[line_index]
+    list(
+      solid = Filter(function(data) all(data$linetype == "solid"), lines),
+      dashed = Filter(function(data) all(data$linetype == "dashed"), lines)
+    )
+  }
 
-  expect_length(solid, 1L)
-  expect_equal(
-    range(solid[[1L]]$x),
-    c(spec$validation$confirmed_cluster_min,
-      spec$validation$confirmed_cluster_max),
-    tolerance = 0
-  )
-  expect_length(dashed, 2L)
-  expect_true(any(vapply(dashed, function(data) min(data$x) < 22, logical(1))))
-  expect_true(any(vapply(dashed, function(data) max(data$x) > 80, logical(1))))
+  # Default complete-record adjustment: solid over 22-320, dashed outside.
+  plot <- bm_plot_calibration(mode = "clustered", range = c(5, 400))
+  lines <- curve_lines(plot)
+  lo <- spec$complete_record$confirmed_cluster_min
+  hi <- spec$complete_record$confirmed_cluster_max
+  expect_length(lines$solid, 1L)
+  expect_equal(range(lines$solid[[1L]]$x), c(lo, hi), tolerance = 0)
+  expect_true(all(lines$solid[[1L]]$y > 1))
+  expect_length(lines$dashed, 2L)
+  expect_true(any(vapply(lines$dashed, function(data) min(data$x) < lo, logical(1))))
+  expect_true(any(vapply(lines$dashed, function(data) max(data$x) > hi, logical(1))))
   expect_true(all(vapply(
-    dashed,
-    function(data) all(data$x <= 22 | data$x >= 80),
+    lines$dashed,
+    function(data) all(data$x <= lo | data$x >= hi),
     logical(1)
   )))
-  expect_match(plot$labels$caption, "confirmed cluster-count range G = 22-80")
+  expect_match(plot$labels$caption, "confirmed\\s+cluster-count\\s+range\\s+G = 22-320")
   expect_match(plot$labels$caption, "extrapolation")
-  expect_match(bm_alt_text(plot), "solid over the confirmed G = 22-80")
+  expect_match(bm_alt_text(plot), "solid over the confirmed G = 22-320")
   expect_match(bm_alt_text(plot), "dashed.*extrapolation")
+
+  # Historical two-stage shrinkage: solid over 22-80, below one.
+  plot <- bm_plot_calibration(mode = "clustered_two_stage", range = c(5, 200))
+  lines <- curve_lines(plot)
+  lo <- spec$two_stage$confirmed_cluster_min
+  hi <- spec$two_stage$confirmed_cluster_max
+  expect_length(lines$solid, 1L)
+  expect_equal(range(lines$solid[[1L]]$x), c(lo, hi), tolerance = 0)
+  expect_true(all(lines$solid[[1L]]$y < 1))
+  expect_length(lines$dashed, 2L)
+  expect_match(plot$labels$caption, "confirmed\\s+cluster-count\\s+range\\s+G = 22-80")
+  expect_match(bm_alt_text(plot), "solid over the confirmed G = 22-80")
 })
 
-test_that("a G above 80 carries its recorded validation metadata into the plot", {
-  fit <- visual_extrapolated_fit()
+test_that("a fit outside the confirmed range carries its recorded validation metadata into the plot", {
+  fit <- visual_outside_fit()
   expect_identical(
     fit$interval$validation_status,
-    "EXTRAPOLATED_CLUSTER_COUNT"
+    "OUTSIDE_CONFIRMED_CLUSTER_COUNT"
   )
   expect_identical(fit$interval$validated_cluster_min, 22L)
-  expect_identical(fit$interval$validated_cluster_max, 80L)
+  expect_identical(fit$interval$validated_cluster_max, 320L)
 
   plot <- bm_plot_calibration(fit)
   built <- ggplot2::ggplot_build(plot)$data
@@ -294,16 +315,16 @@ test_that("a G above 80 carries its recorded validation metadata into the plot",
     logical(1)
   ))
   expect_length(point_index, 1L)
-  expect_equal(built[[point_index]]$x, 81, tolerance = 0)
+  expect_equal(built[[point_index]]$x, 10, tolerance = 0)
   expect_equal(
     built[[point_index]]$y,
     fit$interval$width_multiplier,
     tolerance = 1e-12
   )
-  expect_match(plot$labels$caption, "G =\\s*81")
-  expect_match(plot$labels$caption, "EXTRAPOLATED_CLUSTER_COUNT")
-  expect_match(bm_alt_text(plot), "G = 81")
-  expect_match(bm_alt_text(plot), "EXTRAPOLATED_CLUSTER_COUNT")
+  expect_match(plot$labels$caption, "G =\\s*10")
+  expect_match(plot$labels$caption, "OUTSIDE_CONFIRMED_CLUSTER_COUNT")
+  expect_match(bm_alt_text(plot), "G = 10")
+  expect_match(bm_alt_text(plot), "OUTSIDE_CONFIRMED_CLUSTER_COUNT")
 })
 
 test_that("MC, cluster, and margin review claims match their data", {

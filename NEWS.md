@@ -1,3 +1,117 @@
+# bayesmokken 0.10.0
+
+The clustered polytomous path now implements the adjusted complete-record
+Bayesian-bootstrap interval of the clustered article's current version, in
+place of the two-stage hierarchical procedure of 0.9.0. The binary path and
+the coefficient kernel are unchanged.
+
+## Breaking changes
+
+- **The default clustered weight law is `"complete_record"`.** With a
+  `cluster`, `weight_law = "auto"` now resolves to it in both `mokken_h()`
+  and `bb_mokken_h()`. One Dirichlet weight is drawn per complete cluster
+  record and nothing is reweighted inside a record: respondent weights are
+  `A_g / m_g` (equal-cluster target) and `A_g / sum_h m_h A_h` (respondent
+  target). The earlier version's within-cluster stage adds first-order
+  variance that no multiplier tending to one can remove, which is why it was
+  replaced.
+
+- **The clustered interval is a reflected, expanded error interval.** The
+  type-8 quantiles of the draws are reflected about the point estimate,
+  expanded by `k_G = sqrt((G + 1)/(G - 1)) * qt(.975, G - 1) / qnorm(.975)`,
+  and intersected with `(-Inf, 1]`. `width_multiplier` carries `k_G`, which
+  is exactly the width ratio before the intersection; `gamma` is `NA`. The
+  reported interval need not contain the point estimate and does not share
+  the percentile interval's midpoint. New interval fields record the
+  construction: `reflected_lower`/`reflected_upper` (before the
+  intersection), `upper_intersection`, `set_empty`, `zero_width`,
+  `point_boundary`, `boundary_draws`, `root_multiplier`,
+  `multiplier_formula`, `parameter_space`, `archive_method_id`
+  (`one_stage_basic_G_adjusted`), `protocol_id` (`C2`), `zero_tolerance`
+  and `undefined_draw_rule`. The historical clustered interval gains one
+  field, `construction = "midpoint_halfwidth_scaling"`.
+
+- **The 22–80 cluster refusal no longer applies to the default path.** The
+  complete-record interval is computable for `G >= 2`, which is a
+  computational requirement and not a recommendation. `validation_status`
+  reports `CONFIRMED_CLUSTER_COUNT` inside the confirmed range 22–320 and
+  `OUTSIDE_CONFIRMED_CLUSTER_COUNT` elsewhere, without refusing or warning;
+  `validation_scope` is `POLYTOMOUS_CLUSTERED_COMPLETE_RECORD_BB`.
+  `bm_check_data()` now recommends `bb_mokken_h()` for every polytomous
+  clustered screen and names the confirmed range in its reason line.
+
+- **A stricter typed-undefined rule for scale draws.** A clustered scale
+  draw whose scale denominator or any pair denominator is at most `1e-12` is
+  typed undefined (`scale_status = "typed_undefined"` when the package's own
+  zero tolerance would have kept it), and the point estimate is treated the
+  same way for the interval. Item and pair draws keep the package statuses.
+  `fit$draws` gains `scale_denominator` and `minimum_pair_denominator`.
+
+- **New method identifiers.** Law `V5-CRBB-RESP-v1` / `V5-CRBB-CLUSTER-v1`;
+  interval `V5-C2-CRBB-ADJUSTED-RESP-v1` / `-CLUSTER-v1`; percentile
+  comparator (`interval = "equal_tail"`) `V5-CMP-CRBB-PERCENTILE-RESP-v1` /
+  `-CLUSTER-v1`; `bb_type` is `complete_record_cluster_bayesian_bootstrap`.
+
+- **`bm_plot_calibration()` draws `k_G` for `mode = "clustered"`**, above
+  one and decreasing toward one, solid over 22–320; the two-stage curve is
+  available as `mode = "clustered_two_stage"`. A fit picks its own curve.
+  `bm_mc_diagnostics()` and `bm_plot_mc_stability()` rebuild endpoints with
+  the construction the interval used; for the complete-record construction
+  they describe the endpoints before the intersection with `(-Inf, 1]`.
+
+- **The package title drops "Calibrated".** The binary path is still a
+  calibrated correction; the clustered adjustment is a prespecified function
+  of the cluster count, and the title now says what both paths share.
+
+## The historical two-stage procedure
+
+`weight_law = "hierarchical_cluster"` runs the 0.9.0 procedure unchanged:
+the two-stage law, the shrinkage `1 - 1.5/sqrt(G)` about the percentile
+midpoint, the refusal below 22 clusters, the extrapolation warning above 80,
+and the `V4-P15-HBB-*-GN150-v1` identifiers. Its numbers are frozen by the
+parity gate (fixtures F7 and F8). It is retained so that results of the
+earlier version can be reproduced, and every `bb_mokken_h()` call under it
+emits a warning of class `bm_historical_method_warning`, independently of
+`warn`; `mokken_h()` records the declared law as provenance without warning.
+The call printed in the earlier version of the clustered article runs
+unchanged and produces that version's identifiers.
+
+## Reproduction of the clustered article
+
+The complete-record draw stream is the article's archive stream
+(`V4R-DRAW-MAJOR-EXP-GPLUSN-CMRG-v1`): every draw consumes `G + N` unit
+exponentials from one L'Ecuyer-CMRG stream, the first `G` become the record
+weights, and the result is invariant to `batch_size` and `workers`. On
+`mokken::SWMDK` with `draws = 9999` and the archive's main-stream seeds
+(1883301060 for the teacher scale, 1863497163 for the classmate scale) a
+plain `bb_mokken_h()` call reproduces the article's four intervals: point
+estimates to `1.5e-13`, endpoints to `3.2e-13` (the order in which two
+kernels sum the same weighted moments), `k_30 = 1.07888669019652` exactly.
+The package's arithmetic applied to the archive's stored draws reproduces
+its endpoints to `8e-16`. `tests/testthat/test-swmdk-reproduction.R` and
+the published-number gate carry these checks; the gate's Paper B section
+now verifies the current and the historical numbers side by side.
+
+## Documentation
+
+- Vignettes a3 and m4 describe the complete-record law, the adjustment, the
+  cluster-count metadata and the historical option; m4 carries an
+  independent reimplementation of the archive stream as its oracle. m5's
+  evidence summary reports the current confirmation.
+- The SWMDK caches are now 9,999-draw fits at the archive seeds (scale
+  draws only), so the vignette shows the published endpoints.
+- `bm_guardrails()` lists the historical lane and its cluster-count rules.
+- `inst/CITATION` names the clustered article by its current title.
+
+## Unchanged
+
+The binary path, the weighted-coefficient kernel, the deterministic
+coefficients, the extraction schemas' existing columns, every argument name
+and order, and the frozen 95% level. Parity fixtures F1–F8 pass; F7 and F8
+run on the historical lane.
+
+---
+
 # bayesmokken 0.9.0
 
 First release with a user-facing surface. The estimation engine is carried

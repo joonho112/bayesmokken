@@ -92,8 +92,20 @@ clu_fit <- function(target = "respondent", draws = 300) {
   bb_mokken_h(classroom_wb[, items], item_type = "ordinal",
               supports = bm_supports(classroom_wb, items = items),
               cluster = as.character(classroom_wb$class_id),
-              cluster_target = target, weight_law = "hierarchical_cluster",
-              draws = draws, seed = 1, warn = FALSE)
+              cluster_target = target, draws = draws, seed = 1, warn = FALSE)
+}
+# The historical two-stage lane of 0.9.0, declared explicitly; its warning is
+# the documented behaviour and is silenced here by class only.
+clu_two_stage_fit <- function(target = "respondent", draws = 300) {
+  items <- paste0("wb", 1:6)
+  suppressWarnings(
+    bb_mokken_h(classroom_wb[, items], item_type = "ordinal",
+                supports = bm_supports(classroom_wb, items = items),
+                cluster = as.character(classroom_wb$class_id),
+                cluster_target = target, weight_law = "hierarchical_cluster",
+                draws = draws, seed = 1, warn = FALSE),
+    classes = "bm_historical_method_warning"
+  )
 }
 det_clu_fit <- function(target = "respondent") {
   items <- paste0("wb", 1:6)
@@ -131,6 +143,7 @@ test_that("all declared object modes execute exact extractor schemas", {
   fixtures <- list(
     binary_bb = bin_fit(),
     clustered_bb = clu_fit(),
+    clustered_two_stage_bb = clu_two_stage_fit(),
     deterministic_binary = mokken_h(srs, warn = FALSE),
     deterministic_clustered = det_clu_fit(),
     failure_boundary = boundary_fit()
@@ -276,8 +289,15 @@ test_that("clustered fits carry their target and cluster count", {
   s <- bm_scale_h(fit)
   expect_identical(s$cluster_target, "equal_cluster")
   expect_identical(s$n_clusters, 30L)
-  expect_identical(s$method_id, "V4-P15-HBB-CLUSTER-GN150-v1")
-  expect_identical(bm_provenance(fit)$weight_law, "hierarchical_cluster")
+  expect_identical(s$method_id, "V5-C2-CRBB-ADJUSTED-CLUSTER-v1")
+  expect_identical(bm_provenance(fit)$weight_law, "complete_record")
+  historical <- clu_two_stage_fit("equal_cluster")
+  expect_identical(bm_scale_h(historical)$method_id,
+                   "V4-P15-HBB-CLUSTER-GN150-v1")
+  expect_identical(bm_provenance(historical)$weight_law,
+                   "hierarchical_cluster")
+  expect_identical(bm_interval(historical)$construction,
+                   "midpoint_halfwidth_scaling")
 })
 
 test_that("deterministic clustered provenance retains the declared law", {
@@ -314,7 +334,7 @@ test_that("bm_supports() produces a usable supports argument", {
     mokken_h(classroom_wb[, items], item_type = "ordinal", supports = sup,
              cluster = as.character(classroom_wb$class_id),
              cluster_target = "respondent",
-             weight_law = "hierarchical_cluster", warn = FALSE)
+             weight_law = "complete_record", warn = FALSE)
   )
 })
 

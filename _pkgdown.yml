@@ -17,7 +17,7 @@ template:
     code_font: {google: "Source Code Pro"}
 
 home:
-  title: "Calibrated Bayesian-Bootstrap Intervals for Mokken Scalability"
+  title: "Bayesian-Bootstrap Confidence Intervals for Mokken Scalability"
   description: >
     Mokken scale analysis reports the scalability coefficient H as a bare point
     estimate. This package supplies confidence intervals for H whose coverage
@@ -58,7 +58,7 @@ navbar:
         href: articles/m2-bayesian-bootstrap-calibration.html
       - text: "m3 · Polytomous transport"
         href: articles/m3-polytomous-transport.html
-      - text: "m4 · Hierarchical BB and cluster targets"
+      - text: "m4 · Complete-record BB and cluster targets"
         href: articles/m4-hierarchical-bb-targets.html
       - text: "m5 · Reproducibility and evidence"
         href: articles/m5-reproducibility-and-evidence.html

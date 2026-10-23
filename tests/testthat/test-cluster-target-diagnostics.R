@@ -33,12 +33,12 @@ test_that("size--mean-score correlation is not treated as target agreement", {
   respondent <- mokken_h(
     d[, items], item_type = "ordinal", supports = supports,
     cluster = d$cluster, cluster_target = "respondent",
-    weight_law = "hierarchical_cluster", warn = FALSE
+    weight_law = "complete_record", warn = FALSE
   )
   equal_cluster <- mokken_h(
     d[, items], item_type = "ordinal", supports = supports,
     cluster = d$cluster, cluster_target = "equal_cluster",
-    weight_law = "hierarchical_cluster", warn = FALSE
+    weight_law = "complete_record", warn = FALSE
   )
 
   expect_equal(info$size_mean_score_spearman, 0, tolerance = 1e-12)

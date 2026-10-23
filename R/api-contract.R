@@ -2,11 +2,16 @@
   match.arg(cluster_target, c("respondent", "equal_cluster"))
 }
 
+.bm_weight_laws <- function() {
+  c("auto", "iid_respondent", "complete_record", "hierarchical_cluster")
+}
+
+.bm_cluster_weight_laws <- function() {
+  c("complete_record", "hierarchical_cluster")
+}
+
 .bm_match_weight_law <- function(weight_law) {
-  match.arg(
-    weight_law,
-    c("auto", "iid_respondent", "hierarchical_cluster")
-  )
+  match.arg(weight_law, .bm_weight_laws())
 }
 
 .bm_require_cluster_target <- function(cluster, target_is_missing) {
@@ -36,10 +41,11 @@
     if (identical(cluster_target, "equal_cluster")) {
       .bm_abort("`cluster_target = \"equal_cluster\"` requires ordinal clustered data.")
     }
-    if (identical(weight_law, "hierarchical_cluster")) {
-      .bm_abort(
-        "Binary scalability with `weight_law = \"hierarchical_cluster\"` is unsupported."
-      )
+    if (weight_law %in% .bm_cluster_weight_laws()) {
+      .bm_abort(sprintf(
+        "Binary scalability with `weight_law = \"%s\"` is unsupported.",
+        weight_law
+      ))
     }
     return(list(
       item_type = item_type,
@@ -64,27 +70,30 @@
     }
     if (identical(weight_law, "iid_respondent")) {
       .bm_abort(
-        "Ordinal iid-respondent BB intervals are not supported; use the locked hierarchical cluster law.",
+        "Ordinal iid-respondent BB intervals are not supported; use a cluster-record weight law.",
         hint = .bm_hints$ordinal_needs_cluster_law
       )
     }
-    weight_law <- "hierarchical_cluster"
+    # `"auto"` resolves to the complete-record law of the clustered article's
+    # current version. `"hierarchical_cluster"` is the two-stage law of
+    # version 0.9.0 and is kept as an explicitly historical option.
+    if (identical(weight_law, "auto")) weight_law <- "complete_record"
   } else if (is.null(cluster)) {
     if (identical(cluster_target, "equal_cluster")) {
       .bm_abort("`cluster_target = \"equal_cluster\"` requires `cluster`.")
     }
-    if (identical(weight_law, "hierarchical_cluster")) {
-      .bm_abort("`weight_law = \"hierarchical_cluster\"` requires `cluster`.")
+    if (weight_law %in% .bm_cluster_weight_laws()) {
+      .bm_abort(sprintf("`weight_law = \"%s\"` requires `cluster`.", weight_law))
     }
     weight_law <- "iid_respondent"
   } else {
     if (identical(weight_law, "iid_respondent")) {
       .bm_abort(
-        "Clustered ordinal analysis requires `weight_law = \"hierarchical_cluster\"` or `\"auto\"`.",
+        "Clustered ordinal analysis requires `weight_law = \"auto\"`, `\"complete_record\"` or `\"hierarchical_cluster\"`.",
         hint = .bm_hints$ordinal_needs_cluster_law
       )
     }
-    weight_law <- "hierarchical_cluster"
+    if (identical(weight_law, "auto")) weight_law <- "complete_record"
   }
 
   list(

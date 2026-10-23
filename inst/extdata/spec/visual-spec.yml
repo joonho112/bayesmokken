@@ -65,9 +65,9 @@ figures:
     alt: "Interval plot of the Mokken scale coefficient H at {H}, with a 95 percent interval from {lower} to {upper}, shown against conventional benchmarks."
     assertions:
       - "the point layer x equals interval$point_estimate exactly"
-      - "the calibrated segment is at least as wide as the raw segment for binary fits"
-      - "the calibrated segment is narrower than the raw segment for clustered fits"
-      - "raw and calibrated share a midpoint to within 1e-12"
+      - "the reported segment is at least as wide as the raw segment for binary fits, and shares its midpoint to within 1e-12"
+      - "for complete-record clustered fits the reported segment is the raw segment reflected about the point estimate and expanded by k_G, so its width is k_G times the raw width before any cap at 1"
+      - "for historical two-stage clustered fits the reported segment is narrower than the raw segment and shares its midpoint"
       - "one vertical rule exists per requested benchmark"
 
   bm_plot_draws:
@@ -89,7 +89,7 @@ figures:
     assertions:
       - "the number of density input rows equals the number of finite scale draws"
       - "exactly four vertical rules are drawn when show_interval is TRUE"
-      - "the calibrated rules lie outside the raw rules for binary fits"
+      - "the reported rules lie outside the raw rules for binary fits; for complete-record clustered fits each reported rule is the opposite raw rule reflected about the point estimate and expanded by k_G"
       - "the subtitle reports defined_draws matching sum(is.finite(draws$scale))"
 
   bm_plot_item_h:
@@ -136,38 +136,47 @@ figures:
       - "the item order on both axes equals the order used by bm_plot_item_h"
 
   bm_plot_calibration:
-    question: "How large is the width correction at this sample size or cluster count?"
+    question: "How large is the interval multiplier at this sample size or cluster count?"
     modes:
-      binary: "binary correction over respondent sample size"
-      clustered_confirmed: "clustered correction with a fit inside G = 22-80"
-      clustered_extrapolated: "clustered correction with a fit above G = 80"
+      binary: "binary width correction over respondent sample size"
+      clustered_confirmed: "complete-record adjustment with a fit inside G = 22-320"
+      clustered_outside: "complete-record adjustment with a fit below G = 22, computable but outside the confirmed range"
+      two_stage_historical: "the historical two-stage shrinkage curve of version 0.9.0, no fit"
     geoms: [geom_hline, geom_line, geom_point, geom_text]
     x: {var: n_or_G, label: "binary: n | clustered: number of clusters G"}
     y: {var: multiplier, label: "width multiplier"}
     layers:
       - {name: unity, geom: geom_hline, yintercept: 1, linetype: dotted}
       - {name: binary_curve, from: formula, geom: geom_line, linetype: solid}
-      - {name: confirmed_cluster_curve, from: formula, geom: geom_line, range: "22 <= G <= 80", linetype: solid}
-      - {name: extrapolated_cluster_curve, from: formula, geom: geom_line, range: "G < 22 or G > 80", linetype: dashed}
+      - {name: confirmed_cluster_curve, from: formula, geom: geom_line, range: "confirmed_cluster_min <= G <= confirmed_cluster_max", linetype: solid}
+      - {name: extrapolated_cluster_curve, from: formula, geom: geom_line, range: "outside the confirmed range", linetype: dashed}
       - {name: current, from: fit, geom: geom_point, when: "a fit was supplied"}
     formulas:
       binary: "1 + 0.25/sqrt(n)"
-      clustered: "1 - 1.5/sqrt(G)"
+      clustered: "sqrt((G + 1)/(G - 1)) * qt(0.975, G - 1)/qnorm(0.975)"
+      clustered_two_stage: "1 - 1.5/sqrt(G)"
     validation:
-      confirmed_cluster_min: 22
-      confirmed_cluster_max: 80
-      confirmed_status: CONFIRMED_CLUSTER_COUNT
-      extrapolated_status: EXTRAPOLATED_CLUSTER_COUNT
+      complete_record:
+        confirmed_cluster_min: 22
+        confirmed_cluster_max: 320
+        confirmed_status: CONFIRMED_CLUSTER_COUNT
+        outside_status: OUTSIDE_CONFIRMED_CLUSTER_COUNT
+      two_stage:
+        confirmed_cluster_min: 22
+        confirmed_cluster_max: 80
+        confirmed_status: CONFIRMED_CLUSTER_COUNT
+        extrapolated_status: EXTRAPOLATED_CLUSTER_COUNT
       current_status_from: "interval$validation_status"
-    caption: "The constant is frozen and is not a user argument. For clustered calibration, solid means confirmed G = 22-80 and dashed means extrapolation outside that range; a supplied fit reports its validation status."
-    alt: "Curve of the interval width multiplier against sample size; the clustered curve is solid over confirmed G = 22-80 and dashed outside it as extrapolation, with the current fit and validation status marked when supplied."
+    caption: "The multiplier is frozen and is not a user argument. For a clustered curve, solid means the confirmed cluster-count range and dashed means extrapolation outside it; a supplied fit reports its validation status."
+    alt: "Curve of the interval width multiplier against sample size or cluster count; a clustered curve is solid over its confirmed G range and dashed outside it as extrapolation, with the current fit and validation status marked when supplied."
     assertions:
       - "the binary curve is strictly above 1 and decreasing toward 1"
-      - "the clustered curve is strictly below 1 and increasing toward 1"
-      - "the clustered segment from G = 22 through G = 80 is solid"
-      - "clustered curve values below G = 22 and above G = 80 are dashed extrapolations"
+      - "the complete-record curve is strictly above 1 and decreasing toward 1"
+      - "the complete-record segment from G = 22 through G = 320 is solid"
+      - "complete-record curve values below G = 22 and above G = 320 are dashed extrapolations"
+      - "the historical two-stage curve is strictly below 1 and increasing toward 1, solid over G = 22-80"
       - "when a fit is supplied, the marked point equals interval$width_multiplier to 1e-12"
-      - "a fit above G = 80 reports EXTRAPOLATED_CLUSTER_COUNT in its caption and alternative text"
+      - "a complete-record fit below G = 22 reports OUTSIDE_CONFIRMED_CLUSTER_COUNT in its caption and alternative text"
       - "the function runs with x = NULL, so it can be used for teaching"
 
   bm_plot_mc_stability:

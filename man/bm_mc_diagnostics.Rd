@@ -49,6 +49,16 @@ the endpoints from all finite draws. These quantities diagnose whether the
 requested number of draws was enough for the endpoints to settle; they do
 not validate interval calibration or provide threshold evidence.
 }
+\section{What the diagnostics describe}{
+
+The batch and prefix endpoints are rebuilt with the construction the
+reported interval used: midpoint-and-half-width scaling on the binary and
+the historical clustered paths, and reflection about the point estimate
+with the expansion by \eqn{k_G} on the default clustered path, where the
+diagnostics describe the endpoints before their intersection with
+\eqn{(-\infty, 1]}.
+}
+
 \examples{
 fit <- bb_mokken_h(srs, draws = 200, seed = 1)
 bm_mc_diagnostics(fit)

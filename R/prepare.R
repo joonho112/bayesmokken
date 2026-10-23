@@ -608,17 +608,17 @@ bm_cluster_info <- function(cluster, data = NULL, items = NULL) {
                      n_total - n_complete, n_total,
                      100 * (n_total - n_complete) / n_total))
   }
-  # A clustered deterministic coefficient can use an explicitly declared
-  # two-point ordinal support, but the calibrated hierarchical interval is not
-  # validated when every support has only two categories.
+  # Dichotomous items together with a cluster argument cross the binary and
+  # the clustered paths; the clustered procedure was developed and confirmed
+  # for polytomous items, so an all-two-point support is refused there.
   binary_values <- all(vapply(values, function(v) all(v %in% c(0, 1)),
                               logical(1)))
   if (isTRUE(clustered) && binary_values) {
     f <- add(f, "warning", NA_character_,
-             paste("0/1 items with clusters can use a deterministic",
-                   "two-point ordinal coefficient, but the calibrated",
-                   "hierarchical interval rejects an all-two-category",
-                   "support. See bm_guardrails()."))
+             paste("0/1 items with clusters: the clustered interval",
+                   "refuses an all-two-point support, because the",
+                   "procedure was confirmed for polytomous items.",
+                   "See bm_guardrails()."))
   }
   if (identical(detected, "ordinal")) {
     mins <- vapply(values, function(v) if (length(v)) min(v) else NA_real_, numeric(1))
@@ -748,16 +748,21 @@ bm_cluster_info <- function(cluster, data = NULL, items = NULL) {
   } else {
     "<choose respondent or equal_cluster>"
   })
-  calibrated_lane <- identical(detected, "ordinal") &&
-    cluster_count >= .bm_validated_cluster_min
-  method <- if (calibrated_lane) "bb_mokken_h" else "mokken_h"
+  # The complete-record interval is computable for G >= 2, so the next call
+  # is the interval call for every polytomous clustered screen; the cluster
+  # count only decides whether the reason line points at the confirmed range.
+  interval_lane <- identical(detected, "ordinal")
+  outside_confirmed <- interval_lane &&
+    (cluster_count < .bm_crbb_confirmed_cluster_min ||
+       cluster_count > .bm_crbb_confirmed_cluster_max)
+  method <- if (interval_lane) "bb_mokken_h" else "mokken_h"
   fit_arguments <- c(
     common_arguments,
     "item_type = \"ordinal\"",
     "supports = supports",
     paste0("cluster = ", cluster_code),
     paste0("cluster_target = ", target_code),
-    "weight_law = \"hierarchical_cluster\""
+    "weight_law = \"complete_record\""
   )
   if (identical(method, "bb_mokken_h")) {
     fit_arguments <- c(
@@ -771,16 +776,18 @@ bm_cluster_info <- function(cluster, data = NULL, items = NULL) {
       "Choose `cluster_target = \"respondent\"` or",
       "`cluster_target = \"equal_cluster\"` before running this call."
     )
-  } else if (!calibrated_lane && identical(detected, "binary")) {
+  } else if (!interval_lane && identical(detected, "binary")) {
     paste(
       "A deterministic ordinal point-coefficient call is shown because the",
-      "calibrated clustered interval rejects an all-two-category support."
+      "clustered interval refuses an all-two-category support."
     )
-  } else if (!calibrated_lane) {
+  } else if (outside_confirmed) {
     paste0(
-      "A deterministic point-coefficient call is shown because only ",
-      cluster_count, " complete-scale clusters remain; the calibrated ",
-      "interval requires at least ", .bm_validated_cluster_min, "."
+      "The complete-record interval is computable with only ",
+      cluster_count, " complete-scale clusters, but the confirmation ",
+      "evidence covers ", .bm_crbb_confirmed_cluster_min, "-",
+      .bm_crbb_confirmed_cluster_max, " clusters; the fit will report ",
+      "OUTSIDE_CONFIRMED_CLUSTER_COUNT."
     )
   } else {
     NA_character_

@@ -23,7 +23,30 @@
     Code
       print(clu_fit())
     Output
-      ── Mokken scalability H · two-stage hierarchical Bayesian bootstrap ────────────
+      ── Mokken scalability H · complete-record Bayesian bootstrap ───────────────────
+        estimand     fixed 6-item ordinal scale, respondent-weighted target
+        target       V4-TARGET-RESPONDENT-WEIGHTED-v1
+        method       V5-C2-CRBB-ADJUSTED-RESP-v1  (raw base: V5-CMP-CRBB-PERCENTILE-RESP-v1)
+        sample       n = 614 · clusters = 30 (sizes 12-29) · draws = 300
+        validation   CONFIRMED_CLUSTER_COUNT
+        scope        POLYTOMOUS_CLUSTERED_COMPLETE_RECORD_BB
+        range        G = 30; confirmed range 22-320
+      
+        scale H      0.637   95% CI [0.596, 0.681]      status: OK
+                     raw     [0.597, 0.675]  ->  width x 1.0789  (reflected about H)
+      
+        Interpretation: Bayesian-bootstrap-based confidence interval for
+        repeated-sampling uncertainty; not a posterior credible interval or posterior
+        probability.
+      
+        See: summary() · bm_item_h() · bm_plot_draws() · bm_diagnostics()
+
+# historical two-stage fit prints as designed
+
+    Code
+      print(clu_two_stage_fit())
+    Output
+      ── Mokken scalability H · two-stage hierarchical Bayesian bootstrap (historical) 
         estimand     fixed 6-item ordinal scale, respondent-weighted target
         target       V4-TARGET-RESPONDENT-WEIGHTED-v1
         method       V4-P15-HBB-RESP-GN150-v1  (raw base: V4-PRI-TWO-STAGE-HBB-RESP-v1)
@@ -40,6 +63,26 @@
         probability.
       
         See: summary() · bm_item_h() · bm_plot_draws() · bm_diagnostics()
+
+---
+
+    Code
+      print(clu_two_stage_fit()$interval)
+    Output
+      ── Interval ────────────────────────────────────────────────────────────────────
+        method       V4-P15-HBB-RESP-GN150-v1      status  OK
+        level        95%                     draws   300 of 300 defined
+        validation   CONFIRMED_CLUSTER_COUNT
+        scope        POLYTOMOUS_CLUSTERED_HIERARCHICAL_BB
+        range        G = 30; confirmed range 22-80
+        point        0.637
+        calibrated   [0.589, 0.668]        width x 0.7261  (gamma = -1.50)
+        raw          [0.574, 0.683]        quantile type 8, clipping none
+      
+        Interpretation: Bayesian-bootstrap-based confidence interval for
+        repeated-sampling uncertainty; not a posterior credible interval or posterior
+        probability.
+        See: bm_interval() · ?bayesmokken-intervals
 
 # deterministic fit prints as designed
 

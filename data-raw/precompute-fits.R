@@ -126,19 +126,26 @@ for (tg in c("respondent", "equal_cluster")) {
   save_fit(
     bb_mokken_h(classroom_wb[, cwb_items], item_type = "ordinal",
                 supports = cwb_sup, cluster = cwb_cl, cluster_target = tg,
-                weight_law = "hierarchical_cluster",
+                weight_law = "complete_record",
                 draws = 2000L, seed = 1L, warn = FALSE),
     paste0("cwb_", tg), "lite",
-    paste0("Synthetic classroom data, ", tg, " target, 2,000 draws, seed 1.")
+    paste0("Synthetic classroom data, ", tg, " target, complete-record law, ",
+           "2,000 draws, seed 1.")
   )
 }
 
 # --- SWMDK (only when mokken is available) -----------------------------------
+# The clustered article's application: B = 9,999 draws and the archive's main
+# stream seeds (teacher 1883301060, classmate 1863497163). The package's
+# complete-record stream is the archive's draw-major stream, so these cached
+# fits reproduce the published endpoints to floating-point summation order
+# (about 3e-13). Scale draws only, to keep the installed size small.
 if (requireNamespace("mokken", quietly = TRUE)) {
   utils::data("SWMDK", package = "mokken", envir = environment())
   swmdk <- get("SWMDK", envir = environment())
   scales <- list(teacher = paste0("Item", 1:6),
                  classmate = c("Item8", "Item9", "Item10", "Item11", "Item13"))
+  seeds <- c(teacher = 1883301060L, classmate = 1863497163L)
   for (sc in names(scales)) {
     it <- scales[[sc]]
     sup <- stats::setNames(rep(list(1:5), length(it)), it)
@@ -146,13 +153,14 @@ if (requireNamespace("mokken", quietly = TRUE)) {
       save_fit(
         bb_mokken_h(swmdk[, it], item_type = "ordinal", supports = sup,
                     cluster = as.character(swmdk$classId), cluster_target = tg,
-                    weight_law = "hierarchical_cluster",
-                    draws = 2000L, seed = 1L, warn = FALSE),
-        paste0("swmdk_", sc, "_", tg), "lite",
-        paste0("mokken::SWMDK ", sc, " scale, ", tg, " target, 2,000 draws, ",
-               "seed 1. Cached so the vignette renders without mokken; the ",
-               "published analysis used 99,999 draws from the research ",
-               "harness, so these endpoints differ by Monte Carlo error.")
+                    weight_law = "complete_record",
+                    draws = 9999L, seed = seeds[[sc]], warn = FALSE),
+        paste0("swmdk_", sc, "_", tg), "scale",
+        paste0("mokken::SWMDK ", sc, " scale, ", tg, " target, complete-record ",
+               "law, 9,999 draws, the clustered article's archive seed ",
+               seeds[[sc]], ". Cached so the vignette renders without mokken; ",
+               "the endpoints are the article's to floating-point summation ",
+               "order.")
       )
     }
   }

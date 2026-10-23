@@ -12,8 +12,11 @@ bm_interval(x)
 \value{
 A one-row data frame containing the scalar fields of the typed
 interval. Binary intervals have 21 common fields. Clustered intervals add
-ten fields recording cluster count, target, calibration unit, and the
-confirmed validation scope.
+the cluster count, target, validation scope and status, confirmed
+cluster-count range, and the construction; on the default complete-record
+lane they further add the reflected endpoints before the intersection
+with \eqn{(-\infty, 1]}, the intersection, empty-set and zero-width
+flags, the boundary counts, and the archive method identifier.
 }
 \description{
 Flattens the \code{bm_h_interval} object into a one-row data frame, so an

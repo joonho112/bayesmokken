@@ -30,11 +30,12 @@
     "Drop `cluster`, or declare item_type = \"ordinal\" with `supports`."
   ),
   ordinal_needs_cluster_law = paste(
-    "Ordinal random-weight intervals use the hierarchical law.",
-    "Pass cluster = <labels> and weight_law = \"hierarchical_cluster\"."
+    "Ordinal random-weight intervals use a cluster-record weight law.",
+    "Pass cluster = <labels>; weight_law = \"auto\" selects the",
+    "complete-record law."
   ),
   level_fixed = paste(
-    "The calibration was validated at 95% only, so `level` is fixed at 0.95."
+    "The intervals were evaluated at 95% only, so `level` is fixed at 0.95."
   ),
   seed_integer = "Use an integer seed, for example seed = 1L.",
   non_numeric_items = paste(
@@ -73,8 +74,9 @@ bm_guardrails <- function() {
       "fewer than two items",
       "too few finite bootstrap draws",
       "dichotomous (two-category) items with `cluster`",
-      "fewer than 22 complete-scale clusters for a calibrated interval",
-      "more than 80 complete-scale clusters for a calibrated interval"
+      "fewer than 22 complete-scale clusters under the historical two-stage law",
+      "more than 80 complete-scale clusters under the historical two-stage law",
+      "`weight_law = \"hierarchical_cluster\"` in bb_mokken_h()"
     ),
     reason = c(
       "the clustered procedure was developed and validated for polytomous items",
@@ -89,8 +91,16 @@ bm_guardrails <- function() {
       paste("crossing the binary and clustered paths is refused outright, not",
             "only for the calibrated interval: the clustered procedure was",
             "developed and validated for polytomous items"),
-      "cluster counts below 22 were explicitly left for future validation",
-      "the confirmation design ended at 80 clusters"
+      paste("the two-stage shrinkage 1 - 1.5/sqrt(G) was calibrated on 22-80",
+            "clusters only; the default complete-record path has no such",
+            "refusal, because its multiplier is a prespecified function of G"),
+      paste("the two-stage confirmation design ended at 80 clusters; the",
+            "default complete-record path reports its own confirmed range",
+            "22-320 as metadata without warning"),
+      paste("it is the two-stage hierarchical law of version 0.9.0, whose",
+            "within-cluster reweighting adds first-order variance that no",
+            "multiplier tending to one can remove; retained only to reproduce",
+            "earlier results")
     ),
     what_to_do = c(
       .bm_hints$cluster_with_binary,
@@ -105,11 +115,41 @@ bm_guardrails <- function() {
       paste("Drop `cluster` and analyse the binary scale on its own path,",
             "which is the procedure the binary article validates. Clustered",
             "inference for dichotomous items is outside this package's scope."),
-      paste("Use mokken_h() for the deterministic coefficient, or collect at",
-            "least 22 complete-scale clusters before requesting calibration."),
-      paste("The interval is returned with an extrapolation warning and scope",
-            "metadata; report that it lies outside the confirmed G range.")
+      paste("Use the default complete-record law, which is computable for",
+            "G >= 2 and reports its validation status; the historical law",
+            "refuses below 22 clusters."),
+      paste("The historical interval is returned with an extrapolation",
+            "warning and scope metadata; the default law reports",
+            "OUTSIDE_CONFIRMED_CLUSTER_COUNT above 320 instead."),
+      paste("Use the default `weight_law = \"complete_record\"` for new",
+            "analyses. The historical call runs, warns once with class",
+            "bm_historical_method_warning, and keeps its 0.9.0 identifiers.")
     ),
     stringsAsFactors = FALSE
   )
+}
+
+
+# The historical two-stage law is still computable, because Paper B v3's
+# printed call must keep running and its numbers must stay reproducible. It is
+# never silent: every random-weight call under it says so with a typed class,
+# independently of `warn`, which governs numerical warnings only.
+.bm_warn_historical_method <- function(cluster_target) {
+  warning(structure(
+    list(
+      message = paste0(
+        "`weight_law = \"hierarchical_cluster\"` is the two-stage hierarchical ",
+        "Bayesian-bootstrap procedure of bayesmokken 0.9.0, retained only to ",
+        "reproduce earlier results. Its within-cluster reweighting adds ",
+        "first-order variance that the shrinkage 1 - 1.5/sqrt(G) cannot ",
+        "remove. New analyses should use the default ",
+        "`weight_law = \"complete_record\"`."
+      ),
+      call = NULL,
+      cluster_target = cluster_target,
+      replaced_by = "complete_record",
+      historical_version = "0.9.0"
+    ),
+    class = c("bm_historical_method_warning", "warning", "condition")
+  ))
 }

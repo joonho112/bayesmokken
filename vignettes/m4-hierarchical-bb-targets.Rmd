@@ -1,10 +1,10 @@
 ---
-title: "Two-stage hierarchical BB and the two cluster targets"
+title: "The complete-record bootstrap and the two cluster targets"
 output: rmarkdown::html_vignette
 bibliography: references.bib
 link-citations: true
 vignette: >
-  %\VignetteIndexEntry{Two-stage hierarchical BB and the two cluster targets}
+  %\VignetteIndexEntry{The complete-record bootstrap and the two cluster targets}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -34,7 +34,8 @@ info <- bm_cluster_info(classroom_wb$class_id, data = classroom_wb[, items])
 
 When respondents are nested in clusters, two things must be settled that were
 never in question before: **which** population quantity is being estimated, and
-**how** uncertainty is generated. This vignette does both.
+**how** uncertainty is generated. This vignette does both, and it also records
+why the way uncertainty was generated in version 0.9.0 was replaced.
 
 ## Two estimands, not one estimand and one nuisance
 
@@ -45,17 +46,17 @@ $F_{\mathrm{eq}}=E(F)$. The former corresponds to sampling a respondent
 uniformly. The latter corresponds to sampling a cluster uniformly and then a
 respondent uniformly within that cluster.
 
-In a finite sample, write $g = 1, \dots, G$ for clusters and $n_g$ for the size
-of cluster $g$, so $n = \sum_g n_g$. The plug-in coefficients use cluster
+In a finite sample, write $g = 1, \dots, G$ for clusters and $m_g$ for the size
+of cluster $g$, so $n = \sum_g m_g$. The plug-in coefficients use cluster
 weights
 
-$$H_{\text{resp}} : \ \omega_g = \frac{n_g}{n},
+$$H_{\text{resp}} : \ \omega_g = \frac{m_g}{n},
 \qquad\qquad
 H_{\text{eq}} : \ \omega_g = \frac{1}{G} .$$
 
 These are sample plug-ins for the two population mixtures, not definitions of
 those population distributions. Under equal cluster sizes the plug-ins
-coincide. Under **informative cluster size** — when $n_g$ is associated with
+coincide. Under **informative cluster size** — when $m_g$ is associated with
 the response distribution — they need not.
 
 ```{r informative}
@@ -86,30 +87,39 @@ rather than a silent choice.
 ```{r no-default, error = TRUE}
 bb_mokken_h(classroom_wb[, items], item_type = "ordinal", supports = sup,
             cluster = as.character(classroom_wb$class_id),
-            weight_law = "hierarchical_cluster", draws = 200, seed = 1)
+            weight_law = "complete_record", draws = 200, seed = 1)
 ```
 
-## The two-stage hierarchical bootstrap
+## The complete-record bootstrap
 
-Uncertainty enters at both levels at which sampling happened. Independently per
-draw,
+Treat each cluster, together with every complete-scale response in it, as one
+**record**, and treat the records as the independent sampling units. The
+complete-record law draws one Dirichlet vector over the records per draw,
 
-$$(u_1, \dots, u_G) \sim \mathrm{Dirichlet}(1_G),
-\qquad
-(v_{g1}, \dots, v_{g n_g}) \sim \mathrm{Dirichlet}(1_{n_g}) \ \text{ for each } g,$$
+$$(A_1, \dots, A_G) \sim \mathrm{Dirichlet}(1_G),$$
 
-and the respondent weight is then assembled to match the chosen target:
+and reweights the records *without touching their contents*. Per respondent
+the weight is
 
-$$w_{gi}^{\text{resp}} \ \propto\ \frac{n_g}{n} \, u_g \, v_{gi},
+$$w_{gi}^{\text{eq}} = \frac{A_g}{m_g},
 \qquad\qquad
-w_{gi}^{\text{eq}} \ \propto\ \frac{1}{G} \, u_g \, v_{gi} .$$
+w_{gi}^{\text{resp}} = \frac{A_g}{\sum_h m_h A_h},$$
 
-The upper stage carries between-cluster variability; the lower stage carries
-within-cluster variability; the target enters only through the fixed factor.
-That factor is what makes each draw an estimate of *its own* estimand rather
-than of a common one.
+with the respondent normalization recomputed in every draw. The target enters
+only through that normalization, and nothing inside a record varies from draw
+to draw: the variation of responses within a sampled cluster is already part
+of what the cluster-level influence values carry, so adding more of it would
+count it twice.
 
-### Independent oracle: the seeded HBB weight law
+### Independent oracle: the seeded complete-record stream
+
+The package generates these weights from the stream used by the clustered
+article's replication archive: every draw consumes $G + n$ unit exponentials
+from one L'Ecuyer-CMRG stream, the first $G$ are normalized into $A$, and the
+remaining $n$ (the archive's within-record block, used there only by the
+historical comparator) are discarded. The oracle below reimplements that
+stream without calling any package helper, in blocks of 128 draws, which the
+package does not use.
 
 ```{r verify-weights}
 cluster <- as.character(classroom_wb$class_id)
@@ -118,13 +128,10 @@ sizes <- cluster_info$sizes
 G <- cluster_info$G
 n <- cluster_info$N
 
-# Independent reconstruction of the locked RNG law. This does not call the
-# package's Dirichlet or weight helpers.
-oracle_hbb <- function(cluster, draws, seed, target) {
-  label <- as.character(cluster)
-  lev <- unique(label)
-  index <- match(label, lev)
-  size <- tabulate(index, nbins = length(lev))
+oracle_crbb <- function(cluster, draws, seed, target, block = 128L) {
+  index <- match(cluster, unique(cluster))
+  size <- tabulate(index)
+  G <- length(size); N <- length(index)
   old_kind <- RNGkind()
   had_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
   old_seed <- if (had_seed) get(".Random.seed", envir = .GlobalEnv) else NULL
@@ -136,173 +143,237 @@ oracle_hbb <- function(cluster, draws, seed, target) {
       rm(".Random.seed", envir = .GlobalEnv)
     }
   }, add = TRUE)
-  RNGkind("L'Ecuyer-CMRG")
+  RNGkind("L'Ecuyer-CMRG", "Inversion", "Rejection")
   set.seed(seed)
-  draw_simplex <- function(k) {
-    out <- matrix(stats::rexp(k * draws), nrow = k, ncol = draws)
-    sweep(out, 2, colSums(out), "/")
-  }
-  a <- draw_simplex(length(lev))
-  out <- matrix(0, length(cluster), draws)
-  denominator <- if (target == "respondent") colSums(size * a) else rep(1, draws)
-  for (g in seq_along(lev)) {
-    rows <- which(index == g)
-    b <- draw_simplex(length(rows))
-    multiplier <- if (target == "respondent") {
-      size[g] * a[g, ] / denominator
+  out <- matrix(NA_real_, N, draws)
+  done <- 0L
+  while (done < draws) {
+    b <- min(block, draws - done)
+    E <- matrix(stats::rexp((G + N) * b), G + N, b)
+    A <- sweep(E[seq_len(G), , drop = FALSE], 2,
+               colSums(E[seq_len(G), , drop = FALSE]), "/")
+    out[, done + seq_len(b)] <- if (target == "respondent") {
+      sweep(A[index, , drop = FALSE], 2, colSums(size * A), "/")
     } else {
-      a[g, ]
+      A[index, , drop = FALSE] / size[index]
     }
-    out[rows, ] <- sweep(b, 2, multiplier, "*")
+    done <- done + b
   }
   out
 }
 
-hbb_resp <- bayesmokken:::bm_cluster_hbb_weights(
-  cluster_info, draws = 8, seed = 18022, target = "respondent"
+crbb_resp <- bayesmokken:::bm_cluster_crbb_weights(
+  cluster_info, draws = 300, seed = 18022, target = "respondent"
 )
-hbb_eq <- bayesmokken:::bm_cluster_hbb_weights(
-  cluster_info, draws = 8, seed = 18022, target = "equal_cluster"
+crbb_eq <- bayesmokken:::bm_cluster_crbb_weights(
+  cluster_info, draws = 300, seed = 18022, target = "equal_cluster"
 )
-oracle_resp <- oracle_hbb(cluster, 8, 18022, "respondent")
-oracle_eq <- oracle_hbb(cluster, 8, 18022, "equal_cluster")
-
 stopifnot(
-  identical(hbb_resp$weights, oracle_resp),
-  identical(hbb_eq$weights, oracle_eq),
-  all(abs(colSums(hbb_resp$weights) - 1) < 1e-14),
-  all(abs(colSums(hbb_eq$weights) - 1) < 1e-14),
-  all(hbb_resp$weights >= 0), all(hbb_eq$weights >= 0)
+  identical(crbb_resp$weights, oracle_crbb(cluster, 300, 18022, "respondent")),
+  identical(crbb_eq$weights, oracle_crbb(cluster, 300, 18022, "equal_cluster")),
+  all(abs(colSums(crbb_resp$weights) - 1) < 1e-14),
+  all(abs(colSums(crbb_eq$weights) - 1) < 1e-14),
+  all(crbb_resp$weights > 0), all(crbb_eq$weights > 0)
 )
-c(respondents = n, draws_checked = ncol(hbb_resp$weights), targets_checked = 2)
+c(respondents = n, draws_checked = ncol(crbb_resp$weights), targets_checked = 2)
 ```
 
-The point targets are recovered by a **mean-vector substitution**: replace
-every Dirichlet vector by its mean and then apply the same normalization. This
-is not a statement about the expected value of a ratio. In particular,
-$E\{n_gA_g/\sum_h n_hA_h\}$ generally differs from
-$n_g/\sum_h n_h$.
+The 300 draws cross the package's internal block boundary at 256 and the
+oracle's at 128, so agreement also shows that the stream is draw-major: the
+same seed gives the same weights for any block or batch size.
 
-### Metamorphic/invariant check: mean substitution recovers point weights
+### Metamorphic/invariant check: flat within records, mean substitution recovers the point weights
 
 ```{r verify-cluster-mass}
 idx <- rep(seq_len(G), sizes)
+a <- crbb_eq$record_mass                       # the G x draws outer draws
+
+# Within every record the equal-cluster weights are the record weight divided
+# by its size: no second reweighting, for every draw.
+flat <- vapply(seq_len(G), function(g) {
+  block <- crbb_eq$weights[idx == g, , drop = FALSE]
+  max(abs(sweep(block, 2, a[g, ] / sizes[g], "-")))
+}, numeric(1))
+stopifnot(max(flat) == 0)
+
+# Replacing A by its mean 1/G recovers the plug-in targets exactly.
+point_resp <- bayesmokken:::bm_cluster_point_weights(cluster_info, "respondent")
+point_eq <- bayesmokken:::bm_cluster_point_weights(cluster_info, "equal_cluster")
 mean_a <- rep(1 / G, G)
-mean_b <- lapply(sizes, function(size) rep(1 / size, size))
-
-mean_sub_resp <- unlist(Map(
-  function(g, b) sizes[g] * mean_a[g] * b,
-  seq_len(G), mean_b
-))
-mean_sub_resp <- mean_sub_resp / sum(mean_sub_resp)
-mean_sub_eq <- unlist(Map(
-  function(g, b) mean_a[g] * b,
-  seq_len(G), mean_b
-))
-mean_sub_eq <- mean_sub_eq / sum(mean_sub_eq)
-
-point_resp <- bayesmokken:::bm_cluster_point_weights(
-  cluster_info, "respondent"
-)
-point_eq <- bayesmokken:::bm_cluster_point_weights(
-  cluster_info, "equal_cluster"
-)
 stopifnot(
-  max(abs(unname(mean_sub_resp) - point_resp)) < 1e-14,
-  max(abs(unname(mean_sub_eq) - point_eq)) < 1e-14
+  max(abs(mean_a[idx] / sum(sizes * mean_a) - point_resp)) < 1e-15,
+  max(abs(mean_a[idx] / sizes[idx] - point_eq)) < 1e-15
 )
-
-point_mass_resp <- tapply(point_resp, idx, sum)
-point_mass_eq <- tapply(point_eq, idx, sum)
-draw_mass_resp <- tapply(hbb_resp$weights[, 1], idx, sum)
-draw_mass_eq <- tapply(hbb_eq$weights[, 1], idx, sum)
 
 data.frame(
-  size            = sizes,
-  point_respondent = round(as.numeric(point_mass_resp), 4),
-  point_equal      = round(as.numeric(point_mass_eq), 4),
-  one_draw_respondent = round(as.numeric(draw_mass_resp), 4),
-  one_draw_equal      = round(as.numeric(draw_mass_eq), 4)
+  size = sizes,
+  point_respondent = round(as.numeric(tapply(point_resp, idx, sum)), 4),
+  point_equal = round(as.numeric(tapply(point_eq, idx, sum)), 4),
+  one_draw_respondent = round(as.numeric(tapply(crbb_resp$weights[, 1], idx, sum)), 4),
+  one_draw_equal = round(as.numeric(tapply(crbb_eq$weights[, 1], idx, sum)), 4)
 )[order(sizes)[c(1, 2, G - 1, G)], ]
 ```
 
-The first two mass columns are the finite-sample plug-in targets and are also
-what mean-vector substitution recovers. The last two columns are one random
-HBB draw, included only to show that realized bootstrap masses fluctuate. No
-claim is made that their draw-wise average equals the plug-in target.
+The first two mass columns are the finite-sample plug-in targets. The last two
+are one random draw, included only to show that realized record masses
+fluctuate. No claim is made that their draw-wise average equals the plug-in
+target.
 
-## The correction runs the other way
+## Why the two-stage law was replaced
 
-For the binary path the uncorrected interval was too narrow. Here it is too
-**wide**: the raw hierarchical interval overcovers substantially, at
-$.992$–$.997$ across the pilot's primary-target lanes. So the correction is a
-shrinkage,
+Version 0.9.0 drew, in addition and independently, a second Dirichlet vector
+*within* every record, $(B_{g1}, \dots, B_{g m_g}) \sim \mathrm{Dirichlet}(1_{m_g})$,
+so that the per-respondent weights became $A_g B_{gi}$ and
+$m_g A_g B_{gi} / \sum_h m_h A_h$. Substituting mean weights returns the same
+plug-in targets under either law, so the two laws are centered on the same
+thing. They differ in spread. Conditionally on the data, the complete-record
+draws of $H$ have the first-order limit of the sampling distribution of the
+coefficient, with variance $\sigma^2$; the two-stage draws have variance
+$\sigma^2 + \omega^2$ with
 
-$$\kappa_G = 1 - \frac{1.5}{\sqrt{G}},$$
+$$\omega^2 = 2\,E\!\left\{\frac{c(M)^2\, v}{M + 1}\right\} \ge 0,$$
 
-which depends on the number of **clusters**, not the number of respondents.
-That is the right variable: it is the upper stage, with only $G$ units, that
-drives the excess.
+where $v$ is the within-record dispersion of the influence values and $c(M)$
+the target's size normalization. The extra term is of the same order as
+$\sigma^2$ and does not vanish as $G$ grows, so the earlier shrinkage
+$1 - 1.5/\sqrt{G}$ — which tends to one — could only patch it over the range on
+which it was tuned. The clustered article's current version derives this
+(its Proposition on conditional weight-law limits) and measures it: on a
+matched series of designs that vary $G$ alone, the two-stage draw variance
+exceeded the complete-record draw variance by a factor between 2.5 and 2.6.
 
-**Executable consistency check — reconstruct the adjusted endpoints from the
-stored raw interval and observed $G$.**
+### Executable illustration: the two laws on the classroom data
 
-```{r verify-shrinkage}
-kappa_G <- 1 - 1.5 / sqrt(iv_r$cluster_count)
-m <- (iv_r$raw_lower + iv_r$raw_upper) / 2
-w <- (iv_r$raw_upper - iv_r$raw_lower) / 2
-
-stopifnot(
-  all.equal(kappa_G, iv_r$width_multiplier, tolerance = 1e-12),
-  all.equal(m - kappa_G * w, iv_r$lower, tolerance = 0),
-  all.equal(m + kappa_G * w, iv_r$upper, tolerance = 0)
+```{r two-laws}
+quiet <- function(expr) {
+  suppressWarnings(expr, classes = "bm_historical_method_warning")
+}
+f_two_stage <- quiet(bb_mokken_h(
+  classroom_wb[, items], item_type = "ordinal", supports = sup,
+  cluster = cluster, cluster_target = "respondent",
+  weight_law = "hierarchical_cluster", draws = 2000, seed = 1, warn = FALSE
+))
+sd_ratio <- stats::sd(f_two_stage$draws$scale) / stats::sd(f_resp$draws$scale)
+data.frame(
+  law = c("complete_record", "hierarchical_cluster (historical)"),
+  draw_sd = round(c(stats::sd(f_resp$draws$scale),
+                    stats::sd(f_two_stage$draws$scale)), 4),
+  variance_ratio = round(c(1, sd_ratio^2), 2),
+  method_id = c(bm_interval(f_resp)$method_id,
+                bm_interval(f_two_stage)$method_id)
 )
-data.frame(G = iv_r$cluster_count, kappa_G = kappa_G,
-           binary_kappa_for_comparison = 1 + 0.25 / sqrt(iv_r$n_complete))
 ```
 
-The two corrections sit either side of 1, and that is not an inconsistency: they
-repair opposite defects in two different procedures.
+Same data, same seed: the two-stage draws are visibly more dispersed. This is
+an illustration on one synthetic dataset, not evidence about coverage; the
+evidence is in the confirmation summarized below.
 
-```{r fig-calibration, fig.alt = "Clustered width multiplier versus cluster count: solid from 22 through 80 where confirmation was conducted, dashed outside that range to mark extrapolation, and increasing toward one."}
+## The adjustment
+
+Let $q_L$ and $q_U$ be the type-8 quantiles at .025 and .975 of the defined
+complete-record draws and $\hat H$ the point estimate. The percentile interval
+$[q_L, q_U]$ inherits the first-order coverage of the law, but with few
+clusters it undercovers, so the reported interval acts on the bootstrap
+*errors* instead. Reflecting the error quantiles about $\hat H$ gives the basic
+interval; expanding the reflected errors by
+
+$$k_G = \sqrt{\frac{G+1}{G-1}}\;\frac{t_{G-1,\,.975}}{z_{.975}}$$
+
+and intersecting with $(-\infty, 1]$ gives the reported one:
+
+$$\bigl[\hat H - k_G\,(q_U - \hat H),\ \hat H - k_G\,(q_L - \hat H)\bigr]
+\cap (-\infty, 1].$$
+
+The first factor of $k_G$ matches the conditional Dirichlet variance to the
+sampling variance of a linear cluster mean exactly; the second is a
+$t$-reference heuristic. Together they are a prespecified function of $G$,
+selected between two prespecified candidates before any confirmation outcome
+existed, not a constant fitted to data.
+
+**Executable consistency check — reconstruct the reported endpoints from the
+stored quantiles, point estimate and $G$.**
+
+```{r verify-adjustment}
+k_G <- sqrt((iv_r$cluster_count + 1) / (iv_r$cluster_count - 1)) *
+  stats::qt(0.975, iv_r$cluster_count - 1) / stats::qnorm(0.975)
+h <- iv_r$point_estimate
+
+stopifnot(
+  all.equal(k_G, iv_r$width_multiplier, tolerance = 0),
+  all.equal(h - k_G * (iv_r$raw_upper - h), iv_r$reflected_lower, tolerance = 0),
+  all.equal(h - k_G * (iv_r$raw_lower - h), iv_r$reflected_upper, tolerance = 0),
+  all.equal(min(iv_r$reflected_upper, 1), iv_r$upper, tolerance = 0),
+  all.equal(iv_r$reflected_lower, iv_r$lower, tolerance = 0)
+)
+data.frame(G = iv_r$cluster_count, k_G = k_G,
+           binary_multiplier_for_comparison = 1 + 0.25 / sqrt(iv_r$n_complete))
+```
+
+The reflection is about the point estimate, not the midpoint of the
+percentile interval, so the reported interval need not contain $\hat H$ and
+need not share the percentile interval's midpoint. An empty intersection,
+which arises only when the lower reflected endpoint exceeds one, is reported
+as an empty set with its own status, never as $[1, 1]$.
+
+```{r fig-calibration, fig.alt = "Interval multiplier k_G against the number of clusters: above one, decreasing toward one, solid from 22 through 320 where the confirmation was conducted and dashed outside that range."}
 bm_plot_calibration(mode = "clustered")
 ```
 
-### $G$ matters, and the validation status is explicit
-
-```{r kappa-table}
-data.frame(G = c(22, 30, 50, 80),
-           kappa = round(1 - 1.5 / sqrt(c(22, 30, 50, 80)), 4))
+```{r k-table}
+Gs <- c(22, 30, 55, 80, 160, 320)
+data.frame(G = Gs,
+           k_G = round(sqrt((Gs + 1) / (Gs - 1)) * stats::qt(0.975, Gs - 1) /
+                         stats::qnorm(0.975), 4))
 ```
 
-At $G = 22$ the interval is cut to about 68% of its raw length. A correction
-that aggressive has to be earned, and it was confirmed on a grid running from
-22 to 80 clusters. Below 22 the calibrated route refuses. From 22 through 80
-it reports `CONFIRMED_CLUSTER_COUNT`. Above 80 it returns a result with a typed
-warning and `EXTRAPOLATED_CLUSTER_COUNT`; that result is not covered by the
-confirmation claim.
+### Cluster counts, and what the validation status says
 
-```{r range-refusal, error = TRUE}
-small <- classroom_wb[classroom_wb$class_id %in% levels(classroom_wb$class_id)[1:10], ]
-bb_mokken_h(small[, items], item_type = "ordinal", supports = sup,
-            cluster = as.character(droplevels(small$class_id)),
-            cluster_target = "respondent", weight_law = "hierarchical_cluster",
-            draws = 300, seed = 1, interval = "calibrated")
-```
+The procedure is computable for $G \ge 2$. That is a requirement for the
+arithmetic, not a recommendation that two clusters support inference. The
+confirmation covered cluster counts 22, 30, 35, 55, 80, 160 and 320, and the
+object records whether its count lies inside 22–320:
 
 ```{r validated-range}
 c(status = iv_r$validation_status,
-  validated_min = 22, validated_max = 80, this_fit = iv_r$cluster_count)
+  confirmed_min = iv_r$validated_cluster_min,
+  confirmed_max = iv_r$validated_cluster_max,
+  this_fit = iv_r$cluster_count)
+```
+
+```{r range-outside}
+small <- classroom_wb[classroom_wb$class_id %in% levels(classroom_wb$class_id)[1:10], ]
+iv_small <- bm_interval(bb_mokken_h(
+  small[, items], item_type = "ordinal", supports = sup,
+  cluster = as.character(droplevels(small$class_id)),
+  cluster_target = "respondent", draws = 300, seed = 1, warn = FALSE
+))
+c(G = iv_small$cluster_count, k_G = round(iv_small$width_multiplier, 4),
+  status = iv_small$validation_status)
+```
+
+The historical two-stage lane keeps the refusal that belonged to its
+shrinkage, which was confirmed on 22–80 clusters only:
+
+```{r range-refusal, error = TRUE}
+quiet(bb_mokken_h(small[, items], item_type = "ordinal", supports = sup,
+                  cluster = as.character(droplevels(small$class_id)),
+                  cluster_target = "respondent",
+                  weight_law = "hierarchical_cluster",
+                  draws = 300, seed = 1, interval = "calibrated"))
+```
+
+```{r fig-two-stage, fig.alt = "Historical two-stage width multiplier against the number of clusters: below one, increasing toward one, solid from 22 through 80 and dashed outside that range."}
+bm_plot_calibration(mode = "clustered_two_stage")
 ```
 
 ## Guard rails
 
 Three combinations are refused outright, because each would apply a procedure
-outside the conditions under which it was confirmed.
+outside the conditions under which it was developed and confirmed.
 
 **Dichotomous items with a cluster argument.** The clustered method was
 developed and confirmed on polytomous items. Refused on every route, including
-the uncorrected comparator:
+the percentile comparator and the historical lane:
 
 ```{r guard-binary, error = TRUE}
 data(srs)
@@ -311,7 +382,7 @@ bb_mokken_h(srs, cluster = rep(1:25, length.out = nrow(srs)),
 ```
 
 **Polytomous items under the independent-respondent law.** Random weights with
-no clusters to resample at the upper stage:
+no records to reweight:
 
 ```{r guard-iid, error = TRUE}
 bb_mokken_h(classroom_wb[, items], item_type = "ordinal", supports = sup,
@@ -327,33 +398,47 @@ bm_guardrails()[1:4, c("situation", "what_to_do")]
 
 ## The evidence
 
-A fresh 24-cell confirmation crossed 22–80 clusters, intraclass correlations of
-$.06$–$.38$, informative-size mechanisms, and transport-path stress lanes.
+The clustered article's confirmation ran the frozen procedure on 41,000
+datasets generated after the freeze: 24 conditions, 21 of them regular, with
+cluster counts from 22 to 320, three cluster-size mechanisms (balanced,
+size-dependent, and resampled from the SWMDK classrooms), latent intraclass
+correlations from 0 to .35, and three stress conditions near or at a
+population knot that enter no criterion. Equal-condition coverage over the 21
+regular conditions, both targets:
 
-| Method | Coverage | Length |
+| Procedure | Respondent | Equal-cluster |
 |---|---|---|
-| **Calibrated (default)** | **.974**, both targets, on the 16-cell regular decision lane | 75% of raw |
-| Naive independence BB | .915 | — |
-| Two-level delta | .981 | 7% greater |
-| Raw hierarchical (uncorrected) | .992–.997 in the pilot | — |
+| **Adjusted complete-record interval (this package's default)** | **.947** | **.949** |
+| Complete-record percentile interval (`interval = "equal_tail"`) | .935 | .936 |
+| Whole-cluster multinomial resampling, percentile | .939 | .940 |
+| Two-stage HBB, raw (the 0.9.0 law before shrinkage) | .997 | .997 |
+| Two-stage HBB, shrunk by $1 - 1.5/\sqrt{G}$ (`weight_law = "hierarchical_cluster"`) | .977 | .977 |
+| Clustered delta interval of **mokken** (respondent target only) | .984 | — |
 
-The calibrated interval passed all seven prespecified gates. Applied without
-retuning to the SWMDK school data (639 pupils in 30 classrooms), it produces
-the intervals shown in `vignette("a3-clustered-polytomous-workflow")`.
+The adjusted interval was 6% wider than the percentile interval of the same
+draws and 15% narrower than the shrunk two-stage interval. All four
+prespecified criteria (coverage equivalence to $[.93, .97]$, each tail at most
+.04, operational failure at most .005) were established in 36 of the 42
+condition–target assessments; the six that were not are upper-tail criteria
+whose one-sided bounds crossed .04 at some small-$G$ conditions, which the
+article reports as not established rather than as excess. No condition was
+revisited after its outcome existed.
 
-The naive independence bootstrap is the instructive comparison. It is what you
-get by ignoring the clustering, and at .915 it misses the nominal level by
-enough to matter — which is the practical reason this path exists at all.
+Applied without retuning to the SWMDK school data (639 pupils in 30
+classrooms), the procedure produces the intervals shown in
+`vignette("a3-clustered-polytomous-workflow")`, and the package reproduces
+them at the article's seeds.
 
 ## Correspondence with the article
 
-| This vignette | Clustered article |
+| This vignette | Clustered article (current version) |
 |---|---|
-| The two estimands | §3 |
-| Two-stage hierarchical bootstrap | §4 |
-| Overcoverage and the shrinkage | §4 |
-| Validated cluster range | §4, §6 |
-| Confirmation and comparators | §6 |
+| The two estimands | §3.1 |
+| The complete-record law and the two-stage law | §3.3 |
+| The adjustment $k_G$ | §3.4, §4.1 |
+| Why the two-stage law was replaced | §3.3 (Proposition), §4.2 |
+| Confirmation and comparators | §6, Appendix C |
+| Software | §4.3, Appendix H |
 
 ## Where to go next
 

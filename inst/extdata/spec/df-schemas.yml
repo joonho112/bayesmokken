@@ -16,7 +16,7 @@
 #   * `mode_contracts` and `relations` are executed by the schema test helper.
 # =============================================================================
 
-version: bayesmokken-df-schemas-v2
+version: bayesmokken-df-schemas-v3
 
 modes:
   binary_bb:
@@ -32,7 +32,17 @@ modes:
     clustered: true
     interval: available
     draws: available
-    tags: [ordinal, clustered, bb]
+    weight_law: complete_record
+    tags: [ordinal, clustered, bb, complete_record]
+  clustered_two_stage_bb:
+    object_class: bm_bb_h
+    item_type: ordinal
+    clustered: true
+    interval: available
+    draws: available
+    weight_law: hierarchical_cluster
+    note: historical two-stage law of version 0.9.0
+    tags: [ordinal, clustered, bb, two_stage]
   deterministic_binary:
     object_class: bm_empirical_h
     item_type: binary
@@ -64,8 +74,9 @@ schemas:
       deterministic fit. `interval_status` describes only the typed interval;
       denominator state is always carried separately.
     rows: exactly_one
-    supported_modes: [binary_bb, clustered_bb, deterministic_binary,
-                      deterministic_clustered, failure_boundary]
+    supported_modes: [binary_bb, clustered_bb, clustered_two_stage_bb,
+                      deterministic_binary, deterministic_clustered,
+                      failure_boundary]
     columns:
       - {name: "H",                  type: numeric,   desc: "scale coefficient H(F); may be NA at a denominator boundary"}
       - {name: "lower",              type: numeric,   desc: "reported lower endpoint; NA when unavailable or undefined"}
@@ -91,6 +102,15 @@ schemas:
           interval_status: [OK, OK_WITH_UNDEFINED_DRAWS,
                             INSUFFICIENT_DEFINED_BB_DRAWS]
       clustered_bb:
+        required_non_missing: [H, lower, upper, level, raw_lower, raw_upper,
+                               width_multiplier, method_id, interval_status,
+                               denominator_status, "n", n_items, n_clusters,
+                               cluster_target]
+        allowed_values:
+          cluster_target: [respondent, equal_cluster]
+          interval_status: [OK, OK_WITH_UNDEFINED_DRAWS,
+                            INSUFFICIENT_DEFINED_BB_DRAWS]
+      clustered_two_stage_bb:
         required_non_missing: [H, lower, upper, level, raw_lower, raw_upper,
                                width_multiplier, method_id, interval_status,
                                denominator_status, "n", n_items, n_clusters,
@@ -126,8 +146,9 @@ schemas:
       One row per item, sorted by H and then item name. Draw summaries are
       opt-in and are raw equal-tail, uncalibrated summaries.
     rows: one_per_item
-    supported_modes: [binary_bb, clustered_bb, deterministic_binary,
-                      deterministic_clustered, failure_boundary]
+    supported_modes: [binary_bb, clustered_bb, clustered_two_stage_bb,
+                      deterministic_binary, deterministic_clustered,
+                      failure_boundary]
     columns:
       - {name: "item",                 type: character, desc: "item name"}
       - {name: "H",                    type: numeric,   desc: "item coefficient H_i"}
@@ -151,8 +172,9 @@ schemas:
       One row per unordered item pair in empirical-table order. Draw summaries
       are opt-in. Their integer count makes every boundary NA interpretable.
     rows: choose_n_items_2
-    supported_modes: [binary_bb, clustered_bb, deterministic_binary,
-                      deterministic_clustered, failure_boundary]
+    supported_modes: [binary_bb, clustered_bb, clustered_two_stage_bb,
+                      deterministic_binary, deterministic_clustered,
+                      failure_boundary]
     columns:
       - {name: "item_i",               type: character, desc: "first item"}
       - {name: "item_j",               type: character, desc: "second item"}
@@ -175,10 +197,14 @@ schemas:
   bm_interval:
     description: >
       One row containing the union of scalar typed-interval fields. Binary and
-      boundary objects use the 21 common fields. Clustered objects add ten
-      declared calibration-scope fields.
+      boundary objects use the 21 common fields. Clustered objects add the
+      declared validation-scope fields and the construction; complete-record
+      objects further add the reflected endpoints, the intersection, empty-set
+      and zero-width flags, the boundary counts, and the archive identifiers.
+      `raw_lower`/`raw_upper` are always the percentile quantiles.
     rows: exactly_one
-    supported_modes: [binary_bb, clustered_bb, failure_boundary]
+    supported_modes: [binary_bb, clustered_bb, clustered_two_stage_bb,
+                      failure_boundary]
     columns:
       - {name: "method_id",                      type: character}
       - {name: "base_method_id",                 type: character}
@@ -211,6 +237,23 @@ schemas:
       - {name: "validated_cluster_max",          type: integer,   when: clustered}
       - {name: "calibration_rate",               type: character, when: clustered}
       - {name: "minimum_defined_fraction",       type: numeric,   when: clustered}
+      - {name: "construction",                   type: character, when: clustered}
+      - {name: "root_multiplier",                type: numeric,   when: complete_record, desc: "k_G, the archive's name for the width multiplier"}
+      - {name: "multiplier_formula",             type: character, when: complete_record}
+      - {name: "reflected_lower",                type: numeric,   when: complete_record, desc: "H - k_G (q_U - H), before the intersection"}
+      - {name: "reflected_upper",                type: numeric,   when: complete_record, desc: "H - k_G (q_L - H), before the intersection"}
+      - {name: "parameter_space",                type: character, when: complete_record}
+      - {name: "upper_intersection",             type: logical,   when: complete_record}
+      - {name: "set_empty",                      type: logical,   when: complete_record}
+      - {name: "zero_width",                     type: logical,   when: complete_record}
+      - {name: "point_boundary",                 type: logical,   when: complete_record}
+      - {name: "boundary_draws",                 type: integer,   when: complete_record}
+      - {name: "point_bound_violation",          type: logical,   when: complete_record}
+      - {name: "bound_violation_draws",          type: integer,   when: complete_record}
+      - {name: "archive_method_id",              type: character, when: complete_record}
+      - {name: "protocol_id",                    type: character, when: complete_record}
+      - {name: "zero_tolerance",                 type: numeric,   when: complete_record}
+      - {name: "undefined_draw_rule",            type: character, when: complete_record}
     mode_contracts:
       binary_bb:
         allowed_values:
@@ -221,11 +264,35 @@ schemas:
                                calibration_unit, validation_status,
                                validation_scope, validated_cluster_min,
                                validated_cluster_max, calibration_rate,
-                               minimum_defined_fraction]
+                               minimum_defined_fraction, construction,
+                               root_multiplier, multiplier_formula,
+                               parameter_space, archive_method_id,
+                               protocol_id, zero_tolerance,
+                               undefined_draw_rule]
+        allowed_values:
+          validation_status: [CONFIRMED_CLUSTER_COUNT,
+                              OUTSIDE_CONFIRMED_CLUSTER_COUNT,
+                              NOT_APPLICABLE_EQUAL_TAIL]
+          validation_scope: [POLYTOMOUS_CLUSTERED_COMPLETE_RECORD_BB]
+          construction: [reflected_error_expansion_about_point, percentile]
+          status: [OK, OK_WITH_UNDEFINED_DRAWS, UNDEFINED_POINT_ESTIMATE,
+                   POINT_UPPER_BOUND_VIOLATION, INSUFFICIENT_DEFINED_BB_DRAWS,
+                   DRAW_UPPER_BOUND_VIOLATION, INVALID_ROOT_MULTIPLIER,
+                   NONFINITE_OR_REVERSED_BASE_INTERVAL,
+                   NONFINITE_REFLECTED_ENDPOINT, REVERSED_REFLECTED_ENDPOINTS,
+                   EMPTY_PARAMETER_INTERSECTION, NONFINITE_INTERVAL_LENGTH]
+      clustered_two_stage_bb:
+        required_non_missing: [cluster_count, cluster_target, calibration_n,
+                               calibration_unit, validation_status,
+                               validation_scope, validated_cluster_min,
+                               validated_cluster_max, calibration_rate,
+                               minimum_defined_fraction, construction]
         allowed_values:
           validation_status: [CONFIRMED_CLUSTER_COUNT,
                               EXTRAPOLATED_CLUSTER_COUNT,
                               NOT_APPLICABLE_EQUAL_TAIL]
+          validation_scope: [POLYTOMOUS_CLUSTERED_HIERARCHICAL_BB]
+          construction: [midpoint_halfwidth_scaling]
       failure_boundary:
         required_na: [point_estimate, lower, upper, raw_lower, raw_upper,
                       midpoint]
@@ -242,7 +309,8 @@ schemas:
       Long-format draws. Pair rows add explicit coordinates. `target` remains
       an opaque compatibility key and is never a display label to parse.
     rows: n_draws_times_n_targets
-    supported_modes: [binary_bb, clustered_bb, failure_boundary]
+    supported_modes: [binary_bb, clustered_bb, clustered_two_stage_bb,
+                      failure_boundary]
     columns:
       - {name: "draw_id", type: integer,   desc: "1-based draw index"}
       - {name: "level",   type: character, desc: "scale | item | pair"}
@@ -257,7 +325,8 @@ schemas:
       One row per pair-draw column. The first nine columns are the frozen v0
       summary contract. Pair coordinates are additive; `variable` is opaque.
     rows: one_per_pair
-    supported_modes: [binary_bb, clustered_bb, failure_boundary]
+    supported_modes: [binary_bb, clustered_bb, clustered_two_stage_bb,
+                      failure_boundary]
     columns:
       - {name: "variable",         type: character, desc: "opaque collision-safe pair key"}
       - {name: "mean",             type: numeric}
@@ -279,8 +348,9 @@ schemas:
   bm_provenance:
     description: One row of reproducibility evidence.
     rows: exactly_one
-    supported_modes: [binary_bb, clustered_bb, deterministic_binary,
-                      deterministic_clustered, failure_boundary]
+    supported_modes: [binary_bb, clustered_bb, clustered_two_stage_bb,
+                      deterministic_binary, deterministic_clustered,
+                      failure_boundary]
     columns:
       - {name: "package_version",  type: character}
       - {name: "r_version",        type: character}
@@ -314,6 +384,12 @@ schemas:
                                cluster_id_hash]
         allowed_values:
           item_type: [ordinal]
+          weight_law: [complete_record]
+      clustered_two_stage_bb:
+        required_non_missing: [analysis_input_hash, cluster_target, weight_law, support_hash,
+                               cluster_id_hash]
+        allowed_values:
+          item_type: [ordinal]
           weight_law: [hierarchical_cluster]
       deterministic_binary:
         required_non_missing: [analysis_input_hash]
@@ -327,7 +403,7 @@ schemas:
         required_na: [method_id, seed, rng_kind, total_draws, defined_draws]
         allowed_values:
           item_type: [ordinal]
-          weight_law: [hierarchical_cluster]
+          weight_law: [complete_record, hierarchical_cluster]
       failure_boundary:
         required_non_missing: [analysis_input_hash]
         required_na: [cluster_target, support_hash, cluster_id_hash]
@@ -342,8 +418,9 @@ schemas:
       No interval classification, verdict, or hypothesis-test column is
       permitted. Undefined H retains numeric NA and a character state.
     rows: one_per_benchmark
-    supported_modes: [binary_bb, clustered_bb, deterministic_binary,
-                      deterministic_clustered, failure_boundary]
+    supported_modes: [binary_bb, clustered_bb, clustered_two_stage_bb,
+                      deterministic_binary, deterministic_clustered,
+                      failure_boundary]
     columns:
       - {name: "benchmark",      type: numeric}
       - {name: "H",              type: numeric}
@@ -355,7 +432,7 @@ schemas:
   bm_cluster_summary:
     description: Cluster structure used by bm_cluster_info().
     rows: one_per_cluster
-    supported_modes: [clustered_bb, deterministic_clustered]
+    supported_modes: [clustered_bb, clustered_two_stage_bb, deterministic_clustered]
     columns:
       - {name: "cluster",           type: character}
       - {name: "size",              type: integer}

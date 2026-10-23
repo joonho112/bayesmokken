@@ -110,7 +110,7 @@
 #'          item_type = "ordinal", supports = sup,
 #'          cluster = classroom_wb$class_id,
 #'          cluster_target = "respondent",
-#'          weight_law = "hierarchical_cluster")
+#'          weight_law = "complete_record")
 #'
 #' @family bayesmokken-data
 #' @seealso [bm_simulate()] for the generator, [srs] for real binary data.

@@ -47,17 +47,17 @@ test_that("ordinal analysis hash includes supports, clusters, and target", {
   respondent <- mokken_h(
     x, item_type = "ordinal", supports = supports,
     cluster = cluster, cluster_target = "respondent",
-    weight_law = "hierarchical_cluster", warn = FALSE
+    weight_law = "complete_record", warn = FALSE
   )
   equal_cluster <- mokken_h(
     x, item_type = "ordinal", supports = supports,
     cluster = cluster, cluster_target = "equal_cluster",
-    weight_law = "hierarchical_cluster", warn = FALSE
+    weight_law = "complete_record", warn = FALSE
   )
   relabeled <- mokken_h(
     x, item_type = "ordinal", supports = supports,
     cluster = renamed, cluster_target = "respondent",
-    weight_law = "hierarchical_cluster", warn = FALSE
+    weight_law = "complete_record", warn = FALSE
   )
   support_changed <- mokken_h(
     x, item_type = "ordinal", supports = expanded, warn = FALSE

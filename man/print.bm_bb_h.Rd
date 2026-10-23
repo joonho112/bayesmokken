@@ -18,7 +18,8 @@
 }
 \description{
 Shows the estimand, the frozen method identifier, the sample, and the scale
-coefficient with both its raw and calibrated intervals.
+coefficient with both its raw percentile interval and the reported
+interval.
 }
 \examples{
 bb_mokken_h(srs, draws = 200, seed = 1)

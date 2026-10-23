@@ -23,8 +23,18 @@ clu_fit <- function(target = "respondent", draws = 400) {
   bb_mokken_h(classroom_wb[, items], item_type = "ordinal",
               supports = bm_supports(classroom_wb, items = items),
               cluster = as.character(classroom_wb$class_id),
-              cluster_target = target, weight_law = "hierarchical_cluster",
-              draws = draws, seed = 1, warn = FALSE)
+              cluster_target = target, draws = draws, seed = 1, warn = FALSE)
+}
+clu_two_stage_fit <- function(target = "respondent", draws = 400) {
+  items <- paste0("wb", 1:6)
+  suppressWarnings(
+    bb_mokken_h(classroom_wb[, items], item_type = "ordinal",
+                supports = bm_supports(classroom_wb, items = items),
+                cluster = as.character(classroom_wb$class_id),
+                cluster_target = target, weight_law = "hierarchical_cluster",
+                draws = draws, seed = 1, warn = FALSE),
+    classes = "bm_historical_method_warning"
+  )
 }
 built <- function(p) ggplot2::ggplot_build(p)$data
 
@@ -144,10 +154,29 @@ test_that("the calibrated rules sit outside the raw rules for binary fits", {
   expect_gt(itv$upper, itv$raw_upper)
 })
 
-test_that("the calibrated rules sit inside the raw rules for clustered fits", {
+test_that("the reported clustered rules are the reflected, expanded raw rules", {
   itv <- clu_fit()$interval
+  k <- itv$width_multiplier
+  h <- itv$point_estimate
+  expect_gt(k, 1)
+  expect_equal(itv$lower, h - k * (itv$raw_upper - h), tolerance = 1e-12)
+  expect_equal(itv$upper, h - k * (itv$raw_lower - h), tolerance = 1e-12)
+  expect_equal(itv$upper - itv$lower, k * (itv$raw_upper - itv$raw_lower),
+               tolerance = 1e-12)
+  p <- bm_plot_draws(clu_fit())
+  rules <- Filter(function(d) "xintercept" %in% names(d), built(p))
+  xs <- sort(unlist(lapply(rules, function(d) d$xintercept)))
+  expect_true(all(c(itv$lower, itv$upper, itv$raw_lower, itv$raw_upper,
+                    itv$point_estimate) %in% xs))
+})
+
+test_that("the historical two-stage rules sit inside the raw rules", {
+  itv <- clu_two_stage_fit()$interval
+  expect_lt(itv$width_multiplier, 1)
   expect_gt(itv$lower, itv$raw_lower)
   expect_lt(itv$upper, itv$raw_upper)
+  expect_equal((itv$lower + itv$upper) / 2,
+               (itv$raw_lower + itv$raw_upper) / 2, tolerance = 1e-12)
 })
 
 # --- bm_plot_pair_h -----------------------------------------------------------
@@ -192,9 +221,29 @@ test_that("the calibration curves run in the documented directions", {
   expect_true(bl$y[1L] > bl$y[nrow(bl)])       # decreasing toward 1
 
   cl <- built(bm_plot_calibration(mode = "clustered"))
-  cll <- Filter(function(d) "y" %in% names(d) && nrow(d) > 10, cl)[[1L]]
-  expect_true(all(cll$y < 1))
-  expect_true(cll$y[1L] < cll$y[nrow(cll)])    # increasing toward 1
+  cll <- do.call(rbind, Filter(function(d) "y" %in% names(d) && nrow(d) > 10, cl))
+  expect_true(all(cll$y > 1))
+  expect_true(cll$y[which.min(cll$x)] > cll$y[which.max(cll$x)])  # toward 1
+  expect_equal(cll$y[which.min(abs(cll$x - 30))],
+               bayesmokken:::.bm_cluster_k_multiplier(30), tolerance = 1e-3)
+
+  ts <- built(bm_plot_calibration(mode = "clustered_two_stage"))
+  tsl <- do.call(rbind, Filter(function(d) "y" %in% names(d) && nrow(d) > 10, ts))
+  expect_true(all(tsl$y < 1))
+  expect_true(tsl$y[which.min(tsl$x)] < tsl$y[which.max(tsl$x)])  # toward 1
+})
+
+test_that("a clustered fit is marked on the curve of its own construction", {
+  f <- clu_fit()
+  p <- bm_plot_calibration(f)
+  pts <- Filter(function(d) "shape" %in% names(d) && nrow(d) == 1L, built(p))
+  expect_equal(pts[[1L]]$y, f$interval$width_multiplier, tolerance = 1e-9)
+  expect_match(p$labels$subtitle, "complete-record")
+  h <- clu_two_stage_fit()
+  q <- bm_plot_calibration(h)
+  qpts <- Filter(function(d) "shape" %in% names(d) && nrow(d) == 1L, built(q))
+  expect_equal(qpts[[1L]]$y, h$interval$width_multiplier, tolerance = 1e-9)
+  expect_match(q$labels$subtitle, "two-stage")
 })
 
 test_that("a supplied fit is marked at its own multiplier", {

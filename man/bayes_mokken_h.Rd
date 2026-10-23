@@ -27,7 +27,7 @@ bayes_mokken_h(
   supports = NULL,
   cluster = NULL,
   cluster_target = c("respondent", "equal_cluster"),
-  weight_law = c("auto", "iid_respondent", "hierarchical_cluster")
+  weight_law = c("auto", "iid_respondent", "complete_record", "hierarchical_cluster")
 )
 }
 \arguments{
@@ -54,8 +54,9 @@ the argument exists so the choice is visible in the call rather than
 implicit.}
 
 \item{draws}{Number of Bayesian-bootstrap draws. The frozen default is
-2,000. Raising it reduces Monte Carlo error in the endpoints and costs
-time linearly; \code{\link[=bm_plot_mc_stability]{bm_plot_mc_stability()}} shows whether it is worth it. A
+2,000; the clustered article's application and confirmation used 9,999.
+Raising it reduces Monte Carlo error in the endpoints and costs time
+linearly; \code{\link[=bm_plot_mc_stability]{bm_plot_mc_stability()}} shows whether it is worth it. A
 minimum fraction must come out finite -- \code{max(100, ceiling(0.90 * draws))}
 on the binary path, \code{max(20, ceiling(0.99 * draws))} on the clustered one
 -- and a shortfall produces a typed interval failure rather than an
@@ -63,7 +64,9 @@ interval computed from whatever survived.}
 
 \item{seed}{Nonnegative integer seed for the L'Ecuyer-CMRG draw streams.
 Fractional values are rejected rather than truncated, because \code{1.1} and
-\code{1L} would otherwise silently give the same answer. Always set it.}
+\code{1L} would otherwise silently give the same answer. Always set it. On the
+default clustered lane the stream is the clustered article's draw-major
+mapping, so the archive's seeds reproduce its draws.}
 
 \item{batch_size}{Draws evaluated per processing batch. Affects memory and
 nothing else: changing it does not change which draws are taken.}
@@ -78,9 +81,10 @@ serially, so results do not depend on this.}
 
 \item{pair_threshold}{Deprecated and ignored.}
 
-\item{interval}{\code{"calibrated"} for the validated method, \code{"equal_tail"} for
-the uncorrected comparator. The comparator exists so you can see what the
-correction did; it is not an alternative recommendation.}
+\item{interval}{\code{"calibrated"} for the validated construction of the lane,
+\code{"equal_tail"} for the uncorrected percentile comparator. The comparator
+exists so you can see what the construction did; it is not an alternative
+recommendation.}
 
 \item{level}{Confidence level. Must be exactly \code{0.95}.}
 
@@ -117,9 +121,14 @@ argument must therefore be declared whenever \code{cluster} is supplied. The
 choice is yours to make and to report. See
 \code{\link[=bm_cluster_info]{bm_cluster_info()}}.}
 
-\item{weight_law}{Weight-law declaration: \code{"auto"}, \code{"iid_respondent"} or
-\code{"hierarchical_cluster"}. Deterministic clustered analysis records
-\code{"hierarchical_cluster"} as provenance.}
+\item{weight_law}{Weight-law declaration: \code{"auto"}, \code{"iid_respondent"},
+\code{"complete_record"} or \code{"hierarchical_cluster"}. With \code{cluster}, \code{"auto"}
+resolves to \code{"complete_record"}, the complete-record Bayesian bootstrap
+of the clustered article's current version; \code{"hierarchical_cluster"} is
+the two-stage law of version 0.9.0, kept only for reproducing earlier
+results and warned about by \code{\link[=bb_mokken_h]{bb_mokken_h()}}. The deterministic
+coefficient does not depend on the law; a clustered \code{mokken_h()} call
+records the resolved law as provenance.}
 }
 \value{
 A \code{bm_bb_h} object.

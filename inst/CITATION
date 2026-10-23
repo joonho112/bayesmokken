@@ -7,10 +7,10 @@ citHeader(
 
 bibentry(
   bibtype  = "Manual",
-  title    = "bayesmokken: Calibrated Bayesian-Bootstrap Intervals for Mokken Scalability",
+  title    = "bayesmokken: Bayesian-Bootstrap Confidence Intervals for Mokken Scalability",
   author   = person("JoonHo", "Lee"),
   year     = "2026",
-  note     = "R package version 0.9.0",
+  note     = "R package version 0.10.0",
   url      = "https://github.com/joonho112/bayesmokken"
 )
 
@@ -37,15 +37,12 @@ bibentry(
 bibentry(
   bibtype  = "Unpublished",
   key      = "lee2026clustered",
-  title    = paste(
-    "Cluster-aware confidence intervals for the weighted polytomous",
-    "Mokken scalability coefficient"
-  ),
+  title    = "Cluster-aware uncertainty for polytomous Mokken scalability",
   author   = person("JoonHo", "Lee"),
   year     = "2026",
   note     = "Manuscript under review",
   textVersion = paste(
-    "Lee, J. (2026). Cluster-aware confidence intervals for the weighted",
-    "polytomous Mokken scalability coefficient. Manuscript under review."
+    "Lee, J. (2026). Cluster-aware uncertainty for polytomous Mokken",
+    "scalability. Manuscript under review."
   )
 )

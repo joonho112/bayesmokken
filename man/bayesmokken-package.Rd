@@ -4,7 +4,7 @@
 \name{bayesmokken-package}
 \alias{bayesmokken}
 \alias{bayesmokken-package}
-\title{bayesmokken: calibrated Bayesian-bootstrap intervals for Mokken scalability}
+\title{bayesmokken: Bayesian-bootstrap confidence intervals for Mokken scalability}
 \description{
 Mokken scale analysis summarizes whether a fixed set of items forms a scale
 using the scalability coefficient \eqn{H}. In practice \eqn{H} is usually
@@ -23,15 +23,22 @@ correct a small measured shortfall in coverage.
 
 \strong{Polytomous items, respondents nested in clusters.} The coefficient is
 computed exactly under arbitrary weights by finite comonotone transport.
-Uncertainty comes from a two-stage hierarchical Bayesian bootstrap over
-clusters and then respondents, and the interval is \emph{narrowed} by
-\eqn{1 - 1.5/\sqrt{G}}, because the uncorrected hierarchical interval was
-measured to be substantially too wide in the confirmation design. The
-confirmed cluster-count envelope is \eqn{22 \le G \le 80}; results outside
-that envelope are not described as confirmed.
+Uncertainty comes from a complete-record Bayesian bootstrap: one Dirichlet
+weight per cluster record, nothing reweighted inside a record, so that the
+draws follow the first-order sampling law of the coefficient when clusters
+are the independent units. The interval reflects the draw quantiles about
+the point estimate and expands the reflected errors by
+\eqn{k_G = \sqrt{(G+1)/(G-1)}\, t_{G-1,.975}/z_{.975}}, a prespecified
+function of the number of clusters. The confirmation covered cluster counts
+from 22 to 320; the interval is computable for any \eqn{G \ge 2} and says
+on the result whether \eqn{G} lies inside that range.
 
-The two corrections run in opposite directions. \code{\link[=bm_plot_calibration]{bm_plot_calibration()}}
-shows why in one figure.
+The two-stage hierarchical bootstrap of version 0.9.0, which reweighted
+respondents within clusters as well and narrowed its interval by
+\eqn{1 - 1.5/\sqrt{G}}, is still available as
+\code{weight_law = "hierarchical_cluster"}. It is historical: the within-cluster
+stage adds first-order variance that no multiplier tending to one can
+remove. \code{\link[=bm_plot_calibration]{bm_plot_calibration()}} draws the three multiplier curves.
 }
 
 \section{A five-line start}{
@@ -41,7 +48,7 @@ shows why in one figure.
 bm_check_data(srs)                            # what does the package see?
 fit <- bb_mokken_h(srs, draws = 2000, seed = 1)
 fit                                           # the result and its interval
-bm_plot_draws(fit)                            # what the correction did
+bm_plot_draws(fit)                            # what the construction did
 }\if{html}{\out{</div>}}
 }
 
@@ -63,17 +70,19 @@ that generates them, not an assertion about a posterior.
 \item It reports no threshold probabilities. There is no \code{P(H > .3)} here.
 \item It performs no item selection and propagates no scale-selection
 uncertainty. The item set is fixed by you, before the analysis.
-\item It exposes no tuning constant. \eqn{\gamma} and \eqn{\kappa} were fixed by
-a frozen train-validate-lock procedure, and coverage at any other value is
-simply unknown. \code{level} is 95\% and nothing else.
+\item It exposes no tuning constant. \eqn{\gamma} was fixed by a frozen
+train-validate-lock procedure, \eqn{k_G} is a prespecified function of
+the cluster count, and coverage at any other value is simply unknown.
+\code{level} is 95\% and nothing else.
 \item It offers no verdict on whether a scale is any good. \code{bm_benchmark()}
 reports where an estimate sits relative to the conventional landmarks and
 stops there.
 }
 
 \code{bm_guardrails()} lists the situations in which the package refuses to
-compute, and one situation in which it computes but you should know it is
-outside the validated range.
+compute, and the situations in which it computes but you should know that
+the result lies outside the confirmed range or uses the historical
+procedure.
 }
 
 \section{Where to start}{

@@ -1,16 +1,20 @@
 # =============================================================================
 # Console output for bootstrap fits
 #
-# The message this screen has to carry is what the calibration did. The raw
-# interval and the corrected one are shown together, with the multiplier, so
-# the reader can see that the binary correction widens and the clustered one
-# narrows. Hiding the raw interval would make the correction invisible.
+# The message this screen has to carry is what the interval construction did.
+# The raw percentile interval and the reported one are shown together, with
+# the multiplier, so the reader can see it: the binary correction widens about
+# the midpoint; the default clustered construction reflects the error
+# quantiles about the point estimate and expands them by k_G; the historical
+# two-stage construction narrows about the midpoint. Hiding the raw interval
+# would make any of them invisible.
 # =============================================================================
 
 #' Print a Bayesian-bootstrap Mokken fit
 #'
 #' Shows the estimand, the frozen method identifier, the sample, and the scale
-#' coefficient with both its raw and calibrated intervals.
+#' coefficient with both its raw percentile interval and the reported
+#' interval.
 #'
 #' @param x A `bm_bb_h` object from [bb_mokken_h()].
 #' @param digits Number of digits for coefficients.
@@ -25,18 +29,22 @@
 #' @seealso [summary.bm_bb_h()], [bm_scale_h()], [bm_plot_draws()]
 #' @export
 print.bm_bb_h <- function(x, digits = 3L, ...) {
-  clustered <- identical(
+  clustered <- .bm_is_clustered_fit(x)
+  historical <- identical(
     x$bb_type, "two_stage_hierarchical_cluster_bayesian_bootstrap"
   )
   itv <- x$interval
   semantics <- .bm_fit_semantic_lines(x)
 
-  .bm_header(if (clustered) {
+  .bm_header(if (!clustered) {
+    .bm_dot_join("Mokken scalability H", "Bayesian-bootstrap interval")
+  } else if (historical) {
     .bm_dot_join(
-      "Mokken scalability H", "two-stage hierarchical Bayesian bootstrap"
+      "Mokken scalability H",
+      "two-stage hierarchical Bayesian bootstrap (historical)"
     )
   } else {
-    .bm_dot_join("Mokken scalability H", "Bayesian-bootstrap interval")
+    .bm_dot_join("Mokken scalability H", "complete-record Bayesian bootstrap")
   })
 
   .bm_field("estimand", .bm_estimand_line(x$empirical))
@@ -56,6 +64,9 @@ print.bm_bb_h <- function(x, digits = 3L, ...) {
   .bm_blank()
 
   if (!is.null(itv)) {
+    reflected <- identical(
+      itv$construction, "reflected_error_expansion_about_point"
+    )
     .bm_field("scale H", .bm_num(itv$point_estimate, digits),
               "   ", format(100 * itv$level), "% CI ",
               .bm_ci(itv$lower, itv$upper, digits),
@@ -63,7 +74,17 @@ print.bm_bb_h <- function(x, digits = 3L, ...) {
     same <- identical(.bm_ci(itv$raw_lower, itv$raw_upper, digits),
                       .bm_ci(itv$lower, itv$upper, digits))
     .bm_field("", "raw     ", .bm_ci(itv$raw_lower, itv$raw_upper, digits),
-              "  ->  width x ", .bm_num(itv$width_multiplier, 4L))
+              "  ->  width x ", .bm_num(itv$width_multiplier, 4L),
+              if (reflected) "  (reflected about H)" else "")
+    if (reflected && isTRUE(itv$set_empty)) {
+      .bm_field("", sprintf(
+        "! empty confidence set: reflected endpoints %s lie above 1",
+        .bm_ci(itv$reflected_lower, itv$reflected_upper, digits)))
+    } else if (reflected && isTRUE(itv$upper_intersection)) {
+      .bm_field("", sprintf(
+        "upper endpoint capped at 1 (reflected upper endpoint %s)",
+        .bm_num(itv$reflected_upper, digits)))
+    }
     if (same) {
       # The two intervals round to the same string at this precision. Say so,
       # rather than let the display suggest the correction did nothing.
@@ -123,9 +144,7 @@ summary.bm_bb_h <- function(object, ...) {
         item = bm_item_h(object, include_interval = FALSE),
         mc = object$mc_diagnostics,
         estimand = .bm_estimand_line(object$empirical),
-        clustered = identical(
-          object$bb_type,
-          "two_stage_hierarchical_cluster_bayesian_bootstrap")
+        clustered = .bm_is_clustered_fit(object)
       )),
     class = "summary_bm_bb_h"
   )

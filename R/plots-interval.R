@@ -8,15 +8,15 @@
 
 #' Plot the scale coefficient and its interval
 #'
-#' Draws the scale coefficient as a point with its calibrated interval, the
-#' uncorrected interval beneath it, and the conventional benchmarks as
-#' reference rules. Several fits can be shown together.
+#' Draws the scale coefficient as a point with its reported interval, the
+#' uncorrected percentile interval beneath it, and the conventional benchmarks
+#' as reference rules. Several fits can be shown together.
 #'
 #' @param x A `bm_bb_h` or `bm_empirical_h` object, or a named list of them to
 #'   compare.
 #' @param benchmarks Numeric vector of reference values, or `NULL` for none.
-#' @param show_raw Draw the uncorrected interval beneath the calibrated one.
-#'   Keeping this `TRUE` is what makes the correction visible.
+#' @param show_raw Draw the uncorrected percentile interval beneath the
+#'   reported one. Keeping this `TRUE` is what makes the construction visible.
 #' @param caption Caption text; `NULL` builds the default, `NA` removes it.
 #'
 #' @return A ggplot object.
@@ -70,7 +70,7 @@ bm_plot_scale_h <- function(x,
         caption,
         .bm_method_caption(fits[[1L]]),
         if (isTRUE(show_raw)) {
-          "Thick line: calibrated interval. Dashed line beneath: uncorrected equal-tail interval."
+          "Thick line: reported interval. Dashed line beneath: uncorrected percentile interval."
         } else NULL
       )
     ) +
@@ -88,9 +88,11 @@ bm_plot_scale_h <- function(x,
 #' Plot the bootstrap draws with the interval endpoints
 #'
 #' Shows the distribution of the Bayesian-bootstrap draws of the scale
-#' coefficient, with the uncorrected quantiles and the calibrated endpoints
-#' drawn over it. This is the picture of what the method does: resample, take
-#' quantiles, apply the frozen width correction.
+#' coefficient, with the uncorrected quantiles and the reported endpoints
+#' drawn over it. This is the picture of what the method does: reweight, take
+#' quantiles, apply the frozen construction (a width correction on the binary
+#' path; reflection about the point estimate and the expansion by \eqn{k_G}
+#' on the default clustered path).
 #'
 #' @param x A `bm_bb_h` object.
 #' @param type `"density"` or `"histogram"`.
@@ -162,7 +164,12 @@ bm_plot_draws <- function(x,
       caption = .bm_caption(
         caption,
         .bm_method_caption(x),
-        "Solid rules: calibrated endpoints. Dashed rules: uncorrected equal-tail quantiles. Dot-dash: point estimate."
+        if (identical(itv$construction,
+                      "reflected_error_expansion_about_point")) {
+          "Solid rules: adjusted endpoints (quantiles reflected about the point estimate, errors expanded by k_G). Dashed rules: percentile quantiles. Dot-dash: point estimate."
+        } else {
+          "Solid rules: calibrated endpoints. Dashed rules: uncorrected equal-tail quantiles. Dot-dash: point estimate."
+        }
       )
     ) +
     theme_bayesmokken()

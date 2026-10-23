@@ -67,7 +67,9 @@ export(scale_colour_bayesmokken)
 export(scale_fill_bayesmokken)
 export(theme_bayesmokken)
 import(ggplot2)
-importFrom(generics,glance)
-importFrom(generics,tidy)
+importFrom(generics,
+  glance,
+  tidy
+)
 importFrom(ggplot2,autoplot)
 importFrom(rlang,.data)

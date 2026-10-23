@@ -211,12 +211,18 @@ bm_ordinal_pair_state <- function(moments, supports,
   scale_h <- scale_covariance / scale_state$value[, 1L]
   scale_h[scale_state$status[, 1L] == "zero"] <- NA_real_
 
+  # The raw denominators travel with the draws so that a caller can apply a
+  # stricter typed-undefined rule than the package tolerances (the
+  # complete-record procedure types a draw undefined at 1e-12) without
+  # changing any value computed here.
   list(
     pair = pair_h,
     item = item_h,
     scale = scale_h,
     pair_status = pair_state$status,
     item_status = item_state$status,
-    scale_status = scale_state$status[, 1L]
+    scale_status = scale_state$status[, 1L],
+    pair_denominator = pair_state$value,
+    scale_denominator = scale_denominator_raw
   )
 }

@@ -118,7 +118,7 @@ test_that("omitted cluster target remains an explicit non-runnable choice", {
   ))
 })
 
-test_that("out-of-envelope clustered screens get runnable point calls", {
+test_that("few-cluster screens get a runnable interval call with the range stated", {
   small_clustered <- .preflight_clustered[seq_len(9L), , drop = FALSE]
   selected_items <- c("a", "b", "c")
   checked <- bm_check_data(
@@ -128,19 +128,25 @@ test_that("out-of-envelope clustered screens get runnable point calls", {
     cluster_target = "equal_cluster"
   )
 
+  # The complete-record interval is computable for G >= 2, so the next call is
+  # still the interval call; the reason line names the confirmed range the
+  # three clusters fall outside of.
   expect_true(checked$next_call_runnable)
-  expect_identical(checked$next_call_method, "mokken_h")
+  expect_identical(checked$next_call_method, "bb_mokken_h")
   expect_match(checked$next_call_reason, "only 3 complete-scale clusters")
+  expect_match(checked$next_call_reason, "22-320")
+  expect_match(checked$next_call, "weight_law = \"complete_record\"",
+               fixed = TRUE)
   expect_no_error(parse(text = checked$next_call))
 
   execution <- new.env(parent = environment())
   execution$small_clustered <- small_clustered
   eval(parse(text = checked$next_call), envir = execution)
-  expect_s3_class(execution$fit, "bm_empirical_h")
-  expect_identical(
-    execution$fit$estimand$cluster_target,
-    "equal_cluster"
-  )
+  expect_s3_class(execution$fit, "bm_bb_h")
+  expect_identical(execution$fit$empirical$estimand$cluster_target,
+                   "equal_cluster")
+  expect_identical(execution$fit$interval$validation_status,
+                   "OUTSIDE_CONFIRMED_CLUSTER_COUNT")
 })
 
 test_that("invalid preflight targets are typed errors", {

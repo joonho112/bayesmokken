@@ -24,7 +24,7 @@ bb_mokken_h(
   supports = NULL,
   cluster = NULL,
   cluster_target = c("respondent", "equal_cluster"),
-  weight_law = c("auto", "iid_respondent", "hierarchical_cluster")
+  weight_law = c("auto", "iid_respondent", "complete_record", "hierarchical_cluster")
 )
 }
 \arguments{
@@ -51,8 +51,9 @@ the argument exists so the choice is visible in the call rather than
 implicit.}
 
 \item{draws}{Number of Bayesian-bootstrap draws. The frozen default is
-2,000. Raising it reduces Monte Carlo error in the endpoints and costs
-time linearly; \code{\link[=bm_plot_mc_stability]{bm_plot_mc_stability()}} shows whether it is worth it. A
+2,000; the clustered article's application and confirmation used 9,999.
+Raising it reduces Monte Carlo error in the endpoints and costs time
+linearly; \code{\link[=bm_plot_mc_stability]{bm_plot_mc_stability()}} shows whether it is worth it. A
 minimum fraction must come out finite -- \code{max(100, ceiling(0.90 * draws))}
 on the binary path, \code{max(20, ceiling(0.99 * draws))} on the clustered one
 -- and a shortfall produces a typed interval failure rather than an
@@ -60,7 +61,9 @@ interval computed from whatever survived.}
 
 \item{seed}{Nonnegative integer seed for the L'Ecuyer-CMRG draw streams.
 Fractional values are rejected rather than truncated, because \code{1.1} and
-\code{1L} would otherwise silently give the same answer. Always set it.}
+\code{1L} would otherwise silently give the same answer. Always set it. On the
+default clustered lane the stream is the clustered article's draw-major
+mapping, so the archive's seeds reproduce its draws.}
 
 \item{batch_size}{Draws evaluated per processing batch. Affects memory and
 nothing else: changing it does not change which draws are taken.}
@@ -69,9 +72,10 @@ nothing else: changing it does not change which draws are taken.}
 reference engine keeps the worker-invariant seed map and currently runs
 serially, so results do not depend on this.}
 
-\item{interval}{\code{"calibrated"} for the validated method, \code{"equal_tail"} for
-the uncorrected comparator. The comparator exists so you can see what the
-correction did; it is not an alternative recommendation.}
+\item{interval}{\code{"calibrated"} for the validated construction of the lane,
+\code{"equal_tail"} for the uncorrected percentile comparator. The comparator
+exists so you can see what the construction did; it is not an alternative
+recommendation.}
 
 \item{level}{Confidence level. Must be exactly \code{0.95}.}
 
@@ -108,9 +112,14 @@ argument must therefore be declared whenever \code{cluster} is supplied. The
 choice is yours to make and to report. See
 \code{\link[=bm_cluster_info]{bm_cluster_info()}}.}
 
-\item{weight_law}{Weight-law declaration: \code{"auto"}, \code{"iid_respondent"} or
-\code{"hierarchical_cluster"}. Deterministic clustered analysis records
-\code{"hierarchical_cluster"} as provenance.}
+\item{weight_law}{Weight-law declaration: \code{"auto"}, \code{"iid_respondent"},
+\code{"complete_record"} or \code{"hierarchical_cluster"}. With \code{cluster}, \code{"auto"}
+resolves to \code{"complete_record"}, the complete-record Bayesian bootstrap
+of the clustered article's current version; \code{"hierarchical_cluster"} is
+the two-stage law of version 0.9.0, kept only for reproducing earlier
+results and warned about by \code{\link[=bb_mokken_h]{bb_mokken_h()}}. The deterministic
+coefficient does not depend on the law; a clustered \code{mokken_h()} call
+records the resolved law as provenance.}
 }
 \value{
 An object of class \code{bm_bb_h}:
@@ -118,18 +127,21 @@ An object of class \code{bm_bb_h}:
 \describe{
 \item{\code{empirical}}{The deterministic fit, as returned by \code{\link[=mokken_h]{mokken_h()}}.}
 \item{\code{draws}}{\verb{$scale} (vector), \verb{$item} and \verb{$pair} (matrices, one
-column per item or pair). Undefined draws are kept as \code{NA}.}
+column per item or pair). Undefined draws are kept as \code{NA}. Clustered
+fits add \verb{$scale_denominator} and \verb{$minimum_pair_denominator}.}
 \item{\code{interval}}{A \code{bm_h_interval}: method identifier, status, point
-estimate, raw and calibrated endpoints, the width multiplier, draw
-counts, and the policy fields recording that endpoints are never
-clipped and no method cascade is permitted. Clustered intervals also
-separate respondent \code{n_complete} from cluster-based calibration
-provenance and record the validation scope and status.}
+estimate, raw percentile and reported endpoints, the width multiplier,
+draw counts, and the policy fields recording that no method cascade is
+permitted. Clustered intervals also separate respondent \code{n_complete}
+from the cluster count and record the validation scope and status; on
+the default lane they carry the reflected endpoints before the
+intersection with \eqn{(-\infty, 1]}, the intersection and empty-set
+flags, the boundary counts, and the archive method identifier.}
 \item{\code{summaries}, \code{mc_diagnostics}}{Draw summaries and endpoint Monte
 Carlo diagnostics.}
 \item{\code{grouping}, \code{rng}, \code{sampling}, \code{computation}}{Provenance: pattern or
-cluster structure, seed and generator, weight law and target
-identifiers.}
+cluster structure, seed, generator and stream mapping, weight law and
+target identifiers.}
 }
 
 Reach for \code{\link[=bm_scale_h]{bm_scale_h()}}, \code{\link[=bm_item_h]{bm_item_h()}} and \code{\link[=bm_interval]{bm_interval()}} rather than
@@ -138,9 +150,11 @@ indexing this structure by hand.
 \description{
 Computes the scalability coefficient for a fixed item set and attaches a
 confidence interval whose coverage has been checked in prespecified
-simulations. Binary items take the respondent Bayesian bootstrap; polytomous
-items answered by respondents nested in clusters take the two-stage
-hierarchical Bayesian bootstrap. Both calibrations are frozen.
+simulations. Binary items take the respondent Bayesian bootstrap with a
+frozen width correction; polytomous items answered by respondents nested
+in clusters take the complete-record Bayesian bootstrap with the adjusted
+interval of the clustered article's current version. Both constructions
+are frozen.
 }
 \section{Which path your call takes}{
 Public mode rules are applied in this order:
@@ -151,11 +165,12 @@ never chooses between the respondent-weighted and equal-cluster targets.
 supplied, and to binary otherwise.
 \item Every resolved ordinal call requires a named, increasing support for
 every selected item. Observed values are not substituted for a support.
-\item The binary path rejects \code{supports}, \code{cluster} and
-\code{weight_law = "hierarchical_cluster"}.
+\item The binary path rejects \code{supports}, \code{cluster} and the cluster weight
+laws.
 \item Ordinal \code{\link[=mokken_h]{mokken_h()}} accepts the iid respondent law without clusters and
-the hierarchical law with clusters. Ordinal \code{bb_mokken_h()} additionally
-requires clusters and the hierarchical law.
+a cluster-record law with clusters. Ordinal \code{bb_mokken_h()} additionally
+requires clusters, and \code{weight_law = "auto"} then resolves to
+\code{"complete_record"}.
 }
 
 The supported lanes are summarized below. \code{required} means the argument
@@ -164,39 +179,77 @@ for call compatibility.\tabular{llllll}{
    resolved \code{item_type} \tab \code{supports} \tab \code{cluster} \tab \code{cluster_target} \tab \code{weight_law} \tab result \cr
    binary \tab absent \tab absent \tab not used \tab \code{"auto"} or \code{"iid_respondent"} \tab point H; respondent BB interval \cr
    ordinal \tab required \tab absent \tab not used \tab \code{"auto"} or \code{"iid_respondent"} \tab point H only; interval call errors \cr
-   ordinal \tab required \tab present \tab required \tab \code{"auto"} or \code{"hierarchical_cluster"} \tab clustered point H; hierarchical BB interval \cr
+   ordinal \tab required \tab present \tab required \tab \code{"auto"} or \code{"complete_record"} \tab clustered point H; adjusted complete-record BB interval \cr
+   ordinal \tab required \tab present \tab required \tab \code{"hierarchical_cluster"} \tab clustered point H; historical two-stage BB interval, with a typed warning \cr
 }
 
 
 For \code{bb_mokken_h()}, \code{interval = "calibrated"} selects the validated
-width-corrected confidence interval and \code{interval = "equal_tail"} selects
-the uncorrected comparator. Both interval choices use the sampling law fixed
-by the lane above. Supplying \code{cluster} also makes \code{"auto"} resolve to
-ordinal for 0/1 data, but it does not create an observed two-point support:
-that support must still be declared explicitly. A calibrated clustered
-interval additionally requires at least one selected item with more than two
-declared support points and at least 22 complete-scale clusters. Counts above
-80 are returned with a typed extrapolation warning and explicit validation
-metadata. The equal-tail comparator is not a validated substitute outside
-this scope. See \code{\link[=bm_guardrails]{bm_guardrails()}}.
+construction of the lane and \code{interval = "equal_tail"} selects its
+uncorrected percentile comparator. On the default clustered lane
+\code{"calibrated"} is the adjusted interval described below; the name is kept
+for call compatibility and does not mean that a constant was tuned on data.
+Supplying \code{cluster} also makes \code{"auto"} resolve to ordinal for 0/1 data,
+but it does not create an observed two-point support: that support must
+still be declared explicitly, and dichotomous items with a \code{cluster}
+argument are refused on every route. See \code{\link[=bm_guardrails]{bm_guardrails()}}.
+}
+
+\section{The adjusted complete-record interval (default clustered lane)}{
+With the clusters as the independent sampling units, one Dirichlet vector
+\eqn{A \sim \mathrm{Dirichlet}_G(1, \ldots, 1)} is drawn per draw over the
+\eqn{G} complete cluster records and nothing is reweighted inside a record:
+respondent \eqn{i} of cluster \eqn{g} receives weight \eqn{A_g/m_g} under the
+equal-cluster target and \eqn{A_g/\sum_h m_h A_h} under the respondent
+target, with the random denominator recomputed in every draw. The scale
+coefficient is evaluated exactly for every draw; a draw whose scale
+denominator or any pair denominator is at most \eqn{10^{-12}} is typed
+undefined, and at least \eqn{\max\{20, \lceil 0.99 B \rceil\}} draws must be
+defined. The type-8 quantiles \eqn{q_L, q_U} at .025 and .975 of the defined
+draws are reflected about the point estimate \eqn{\hat H} and expanded by
+\deqn{k_G = \sqrt{(G+1)/(G-1)}\; t_{G-1,.975} / z_{.975},}
+giving \eqn{[\hat H - k_G (q_U - \hat H),\; \hat H - k_G (q_L - \hat H)]},
+which is then intersected with \eqn{(-\infty, 1]}. The reflection is about
+the point estimate, not the midpoint of the percentile interval, so the
+reported interval need not contain \eqn{\hat H}. An empty intersection is
+reported as an empty set with status \code{EMPTY_PARAMETER_INTERSECTION}, never
+as \eqn{[1, 1]}; negative values are retained; a zero-width interval is
+usable and flagged. The procedure is computable for \eqn{G \ge 2}, which is
+a computational requirement and not a recommendation; its confirmation
+covered cluster counts 22, 30, 35, 55, 80, 160 and 320, and the interval
+records \code{CONFIRMED_CLUSTER_COUNT} inside 22--320 and
+\code{OUTSIDE_CONFIRMED_CLUSTER_COUNT} elsewhere, without refusing or warning.
+The draw stream reproduces the clustered article's archive: the same seed
+gives the same draws, independently of \code{batch_size} and \code{workers}.
+}
+
+\section{The historical two-stage lane}{
+\code{weight_law = "hierarchical_cluster"} runs the clustered procedure of
+bayesmokken 0.9.0: a second Dirichlet reweighting within every cluster and
+a midpoint-preserving shrinkage of the percentile interval by
+\eqn{1 - 1.5/\sqrt{G}}, confirmed on 22--80 clusters, refused below 22 and
+flagged above 80. The within-cluster stage adds first-order variance that no
+multiplier tending to one can remove, which is why the lane was replaced.
+It is retained so that results of the earlier version can be reproduced;
+every random-weight call under it emits a warning of class
+\code{bm_historical_method_warning}, independently of \code{warn}.
 }
 
 \section{The five arguments most people need}{
-\code{data}, \code{draws}, \code{seed} for a binary scale; add \code{supports}, \code{cluster},
-\code{cluster_target} and \code{weight_law} for clustered polytomous data. Everything
-else has a frozen default that should be left alone unless you have a
-specific reason.
+\code{data}, \code{draws}, \code{seed} for a binary scale; add \code{supports}, \code{cluster} and
+\code{cluster_target} for clustered polytomous data. Everything else has a
+frozen default that should be left alone unless you have a specific reason.
 }
 
-\section{Frozen calibration}{
+\section{Frozen constants}{
 
-The width constants and the confidence level are not arguments. \eqn{\gamma}
-= 0.25 for the binary correction and \eqn{\kappa} = 1.5 for the clustered
-one were fixed on training data, validated on disjoint held-out conditions,
-and locked. \code{level} must be exactly 0.95. Coverage at any other setting has
-not been examined, so the package will not produce one. The clustered
-confirmation covered polytomous designs at cluster counts 22, 35, 55 and 80;
-it is not a universal theorem for other supports or cluster counts. See
+The multipliers and the confidence level are not arguments. \eqn{\gamma}
+= 0.25 for the binary correction was fixed on training data, validated on
+disjoint held-out conditions, and locked; \eqn{k_G} for the clustered
+adjustment is a prespecified function of the cluster count, selected
+between two prespecified candidates before any confirmation outcome
+existed. \code{level} must be exactly 0.95. Coverage at any other setting has
+not been examined, so the package will not produce one. See
 \code{?bayesmokken-intervals}.
 }
 
@@ -212,7 +265,7 @@ uncertainty.
 \section{Only the scale coefficient is calibrated}{
 
 \code{fit$draws$item} and \code{fit$draws$pair} are available and \code{\link[=bm_item_h]{bm_item_h()}} will
-summarize them, but the width correction was validated for the scale
+summarize them, but the interval constructions were validated for the scale
 coefficient alone. Item- and pair-level intervals are reported as raw
 quantiles and labeled \code{uncalibrated}.
 }
@@ -231,11 +284,11 @@ cfit <- bb_mokken_h(classroom_wb[, items],
                     supports = bm_supports(classroom_wb, items = items),
                     cluster = classroom_wb$class_id,
                     cluster_target = "respondent",
-                    weight_law = "hierarchical_cluster",
+                    weight_law = "complete_record",
                     draws = 500, seed = 1)
 bm_scale_h(cfit)
 
-# See what the correction did
+# See what the construction did
 bm_plot_draws(fit)
 }
 
@@ -247,13 +300,13 @@ try(bb_mokken_h(srs, draws = 200, seed = 1, level = 0.90))
 Lee, J. (2026). Calibrated Bayesian bootstrap confidence intervals for the
 fixed binary Mokken scalability coefficient. Manuscript under review.
 
-Lee, J. (2026). Cluster-aware confidence intervals for the weighted
-polytomous Mokken scalability coefficient. Manuscript under review.
+Lee, J. (2026). Cluster-aware uncertainty for polytomous Mokken
+scalability. Manuscript under review.
 }
 \seealso{
 \code{\link[=mokken_h]{mokken_h()}} for the coefficient without an interval,
 \code{\link[=bm_check_data]{bm_check_data()}} to screen data first, \code{\link[=bm_scale_h]{bm_scale_h()}} to extract the
-result, \code{\link[=bm_plot_draws]{bm_plot_draws()}} to see the correction, \code{?bayesmokken-intervals}
+result, \code{\link[=bm_plot_draws]{bm_plot_draws()}} to see the construction, \code{?bayesmokken-intervals}
 for what the interval means.
 
 Other bayesmokken-estimation:

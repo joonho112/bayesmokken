@@ -29,7 +29,9 @@
 #'
 #' Returns the scale-level coefficient as a one-row data frame, with the
 #' interval when the object has one. This is the level, and the only level, at
-#' which the width calibration of this package has been validated.
+#' which the interval constructions of this package have been validated.
+#' `raw_lower` and `raw_upper` are always the uncorrected percentile
+#' quantiles; `lower` and `upper` are the reported endpoints.
 #'
 #' @param x A `bm_bb_h` object from [bb_mokken_h()], or a `bm_empirical_h`
 #'   object from [mokken_h()]. With a deterministic fit the interval columns
@@ -225,8 +227,11 @@ bm_pair_h <- function(x, include_interval = FALSE, interval = NULL) {
 #'
 #' @return A one-row data frame containing the scalar fields of the typed
 #'   interval. Binary intervals have 21 common fields. Clustered intervals add
-#'   ten fields recording cluster count, target, calibration unit, and the
-#'   confirmed validation scope.
+#'   the cluster count, target, validation scope and status, confirmed
+#'   cluster-count range, and the construction; on the default complete-record
+#'   lane they further add the reflected endpoints before the intersection
+#'   with \eqn{(-\infty, 1]}, the intersection, empty-set and zero-width
+#'   flags, the boundary counts, and the archive method identifier.
 #'
 #' @examples
 #' fit <- bb_mokken_h(srs, draws = 200, seed = 1)

@@ -100,7 +100,7 @@ test_that("same seed is exact and different seeds separate", {
   expect_false(identical(a$weights, c$weights))
 })
 
-test_that("vectorized ordinal BB draws equal deterministic weighted H", {
+test_that("the historical two-stage draws equal deterministic weighted H", {
   block <- data.frame(
     a = c(0, 1, 2, 3, 0, 1, 3, 2),
     b = c(0, 1, 1, 3, 0, 2, 3, 2),
@@ -114,17 +114,24 @@ test_that("vectorized ordinal BB draws equal deterministic weighted H", {
   weights <- bayesmokken:::bm_cluster_hbb_weights(
     info, draws = 40, seed = 119, target = "equal_cluster"
   )$weights
-  fit <- bb_mokken_h(
-    x,
-    item_type = "ordinal",
-    supports = supports,
-    cluster = cluster,
-    cluster_target = "equal_cluster",
-    draws = 40,
-    seed = 119,
-    batch_size = 7,
-    warn = FALSE
+  fit <- suppressWarnings(
+    bb_mokken_h(
+      x,
+      item_type = "ordinal",
+      supports = supports,
+      cluster = cluster,
+      cluster_target = "equal_cluster",
+      weight_law = "hierarchical_cluster",
+      draws = 40,
+      seed = 119,
+      batch_size = 7,
+      warn = FALSE
+    ),
+    classes = "bm_historical_method_warning"
   )
+  expect_identical(fit$sampling$weight_law, "hierarchical_cluster")
+  expect_identical(fit$bb_type,
+                   "two_stage_hierarchical_cluster_bayesian_bootstrap")
   reference <- vapply(seq_len(ncol(weights)), function(b) {
     mokken_h(
       x,

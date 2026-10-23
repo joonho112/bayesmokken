@@ -17,8 +17,8 @@ compare.}
 
 \item{benchmarks}{Numeric vector of reference values, or \code{NULL} for none.}
 
-\item{show_raw}{Draw the uncorrected interval beneath the calibrated one.
-Keeping this \code{TRUE} is what makes the correction visible.}
+\item{show_raw}{Draw the uncorrected percentile interval beneath the
+reported one. Keeping this \code{TRUE} is what makes the construction visible.}
 
 \item{caption}{Caption text; \code{NULL} builds the default, \code{NA} removes it.}
 }
@@ -26,9 +26,9 @@ Keeping this \code{TRUE} is what makes the correction visible.}
 A ggplot object.
 }
 \description{
-Draws the scale coefficient as a point with its calibrated interval, the
-uncorrected interval beneath it, and the conventional benchmarks as
-reference rules. Several fits can be shown together.
+Draws the scale coefficient as a point with its reported interval, the
+uncorrected percentile interval beneath it, and the conventional benchmarks
+as reference rules. Several fits can be shown together.
 }
 \examples{
 fit <- bb_mokken_h(srs, draws = 200, seed = 1)

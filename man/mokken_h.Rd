@@ -19,7 +19,7 @@ mokken_h(
   supports = NULL,
   cluster = NULL,
   cluster_target = c("respondent", "equal_cluster"),
-  weight_law = c("auto", "iid_respondent", "hierarchical_cluster")
+  weight_law = c("auto", "iid_respondent", "complete_record", "hierarchical_cluster")
 )
 }
 \arguments{
@@ -82,9 +82,14 @@ argument must therefore be declared whenever \code{cluster} is supplied. The
 choice is yours to make and to report. See
 \code{\link[=bm_cluster_info]{bm_cluster_info()}}.}
 
-\item{weight_law}{Weight-law declaration: \code{"auto"}, \code{"iid_respondent"} or
-\code{"hierarchical_cluster"}. Deterministic clustered analysis records
-\code{"hierarchical_cluster"} as provenance.}
+\item{weight_law}{Weight-law declaration: \code{"auto"}, \code{"iid_respondent"},
+\code{"complete_record"} or \code{"hierarchical_cluster"}. With \code{cluster}, \code{"auto"}
+resolves to \code{"complete_record"}, the complete-record Bayesian bootstrap
+of the clustered article's current version; \code{"hierarchical_cluster"} is
+the two-stage law of version 0.9.0, kept only for reproducing earlier
+results and warned about by \code{\link[=bb_mokken_h]{bb_mokken_h()}}. The deterministic
+coefficient does not depend on the law; a clustered \code{mokken_h()} call
+records the resolved law as provenance.}
 }
 \value{
 An object of class \code{bm_empirical_h}, with \code{pair}, \code{item} and \code{scale}
@@ -123,7 +128,7 @@ mokken_h(classroom_wb[, items], item_type = "ordinal",
          supports = bm_supports(classroom_wb, items = items),
          cluster = classroom_wb$class_id,
          cluster_target = "respondent",
-         weight_law = "hierarchical_cluster")
+         weight_law = "complete_record")
 }
 
 }

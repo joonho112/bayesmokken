@@ -76,7 +76,13 @@
 .bm_bb_mokken_h_ordinal <- function(
     data, items, score_map, missing_codes, row_ids, missing,
     draws, seed, batch_size, workers, interval, level,
-    zero_tol, eta, warn, supports, cluster, cluster_target) {
+    zero_tol, eta, warn, supports, cluster, cluster_target,
+    weight_law = c("complete_record", "hierarchical_cluster")) {
+  weight_law <- match.arg(weight_law)
+  historical <- identical(weight_law, "hierarchical_cluster")
+  if (historical) {
+    .bm_warn_historical_method(cluster_target)
+  }
   empirical <- mokken_h(
     data = data,
     items = items,
@@ -92,7 +98,7 @@
     supports = supports,
     cluster = cluster,
     cluster_target = cluster_target,
-    weight_law = "hierarchical_cluster"
+    weight_law = weight_law
   )
 
   selected <- data[, items, drop = FALSE]
@@ -120,7 +126,10 @@
     cluster_info = cluster_info,
     cluster_target = cluster_target
   )
-  if (identical(interval, "calibrated")) {
+  if (historical && identical(interval, "calibrated")) {
+    # The 22-80 cluster envelope belongs to the two-stage shrinkage. The
+    # complete-record procedure is computable for G >= 2 and reports its
+    # confirmed range as metadata instead.
     .bm_validate_cluster_calibration_scope(
       validated$supports, cluster_info$G
     )
@@ -154,21 +163,35 @@
     batch_size = batch_size,
     workers = workers,
     zero_tol = zero_tol,
-    eta = eta
+    eta = eta,
+    weight_law = weight_law
   )
-  out$interval <- .bm_cluster_interval_from_draws(
-    bb_draws = out$draws$scale,
-    point_estimate = empirical$scale$H,
-    n_complete = complete$n_complete,
-    cluster_count = cluster_info$G,
-    cluster_target = cluster_target,
-    interval = interval,
-    level = level
-  )
+  out$interval <- if (historical) {
+    .bm_cluster_interval_from_draws(
+      bb_draws = out$draws$scale,
+      point_estimate = empirical$scale$H,
+      n_complete = complete$n_complete,
+      cluster_count = cluster_info$G,
+      cluster_target = cluster_target,
+      interval = interval,
+      level = level
+    )
+  } else {
+    .bm_crbb_interval_from_draws(
+      bb_draws = out$draws$scale,
+      point_estimate = empirical$scale$H,
+      n_complete = complete$n_complete,
+      cluster_count = cluster_info$G,
+      cluster_target = cluster_target,
+      interval = interval,
+      level = level,
+      point_defined = .bm_crbb_point_defined(empirical)
+    )
+  }
   out$summaries <- bm_bb_summary(out)
   out$mc_diagnostics <- bm_mc_diagnostics(out, level = level)
 
-  if (isTRUE(warn) &&
+  if (isTRUE(warn) && historical &&
       identical(interval, "calibrated") &&
       cluster_info$G > .bm_validated_cluster_max) {
     .bm_warn_cluster_count_extrapolation(cluster_info$G)
@@ -179,7 +202,7 @@
     warning(structure(
       list(
         message = paste0(
-          "Some hierarchical Bayesian-bootstrap draws have undefined ",
+          "Some clustered Bayesian-bootstrap draws have undefined ",
           "scale H; inspect the typed interval status and defined-draw counts."
         ),
         call = NULL,

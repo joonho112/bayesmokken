@@ -114,11 +114,23 @@ format_bm_interval_cli <- function(x, ...) {
   }
   semantics <- .bm_interval_semantic_lines(itv)
   cli::cli_h2("Interval")
+  reported_label <- if (identical(
+    itv$construction, "reflected_error_expansion_about_point"
+  )) {
+    "adjusted"
+  } else if (identical(itv$construction, "percentile")) {
+    "percentile"
+  } else {
+    "calibrated"
+  }
   details <- c(
     "method" = itv$method_id,
     "status" = semantics$numerical_status,
-    "point" = .bm_num(itv$point_estimate),
-    "calibrated" = .bm_ci(itv$lower, itv$upper),
+    "point" = .bm_num(itv$point_estimate)
+  )
+  details[reported_label] <- .bm_ci(itv$lower, itv$upper)
+  details <- c(
+    details,
     "raw" = .bm_ci(itv$raw_lower, itv$raw_upper),
     "width x" = .bm_num(itv$width_multiplier, 4L),
     "draws" = sprintf("%d of %d defined", itv$defined_draws, itv$total_draws)

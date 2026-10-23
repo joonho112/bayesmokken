@@ -11,15 +11,22 @@
 #
 #   * Paper A (SRS)   research/v3/empirical-ppsrs/analysis/run_ppsrs_...R
 #                     set.seed(2026072611) + rexp(), 50,000 draws, one process.
-#   * Paper B (SWMDK) research/v4/.../phase17, 12 tasks x 99,999 draws,
+#   * Paper B v3 (SWMDK, two-stage law, historical)
+#                     research/v4/.../phase17, 12 tasks x 99,999 draws,
 #                     batch_size 2,000, seed = 2026075701 + 10000*task + batch.
+#   * Paper B current version (SWMDK, complete-record law)
+#                     the article's archive, application/phase08-swmdk-*,
+#                     main stream S01: 9,999 draws, seeds 1883301060 (teacher)
+#                     and 1863497163 (classmate), draw-major CMRG mapping.
 #
-# The package's own bb_mokken_h() uses L'Ecuyer-CMRG streams, so its DRAWS are
-# a different (equally valid) Monte Carlo sample. Draw-for-draw reproduction of
-# the published intervals from a package call is therefore impossible by
-# construction, and any gate claiming otherwise would be false.
+# For the binary path and the historical two-stage path, the package's
+# bb_mokken_h() draws a different (equally valid) Monte Carlo sample, so a
+# package call agrees with those published intervals only within Monte Carlo
+# error. For the current clustered path the package's complete-record stream
+# IS the archive's stream, so a plain package call at the archive's seeds
+# reproduces the published endpoints to floating-point summation order.
 #
-# What the articles actually claim, and what this script verifies, is:
+# What the articles claim, and what this script verifies, is:
 #
 #   A. POINT ESTIMATES are exact. H is a deterministic functional of the data;
 #      no RNG is involved. Checked at tolerance 1e-12.
@@ -30,15 +37,18 @@
 #      application's interval endpoints from saved draws to a maximum absolute
 #      difference of 1.1e-15". Checked at tolerance 1e-12.
 #
-#   C. A PLAIN PACKAGE CALL AGREES within Monte Carlo error. This is a sanity
-#      band, not an exactness claim. The band is stated explicitly below.
+#   C. A PLAIN PACKAGE CALL AGREES: within Monte Carlo error on the binary and
+#      historical paths (bands stated below), and at 1e-9 -- a thousand times
+#      the observed 3e-13 summation-order difference -- on the current
+#      clustered path.
 #
 # Usage (from the package root):
 #     Rscript inst/scripts/verify-published-numbers.R
 #
-# Requires the two source datasets, which are NOT bundled:
+# Requires the source datasets and archives, which are NOT bundled:
 #     * SRS  : IRW local database (sha256-checked below)
 #     * SWMDK: mokken::SWMDK
+#     * the clustered article's archive (BAYESMOKKEN_PAPER_B_ARCHIVE)
 # Missing sources cause the affected section to be reported as SKIPPED, never
 # silently passed.
 # =============================================================================
@@ -171,11 +181,36 @@ SWMDK_SCALES <- list(
   teacher   = paste0("Item", 1:6),
   classmate = c("Item8", "Item9", "Item10", "Item11", "Item13")
 )
+
+# --- B(current): the adjusted complete-record interval -----------------------
+# The article's key-number ledger (tools/key_numbers.csv, v4.app-*).
+published_crbb <- list(
+  teacher_respondent = list(
+    H = 0.619919910686637, ci = c(0.576348622837636, 0.662965039512330)),
+  teacher_equal_cluster = list(
+    H = 0.622319152142876, ci = c(0.579849088771199, 0.665975663041322)),
+  classmate_respondent = list(
+    H = 0.592308560081349, ci = c(0.556233936039344, 0.631182130540829)),
+  classmate_equal_cluster = list(
+    H = 0.582943580481479, ci = c(0.542865250689451, 0.621934026654128))
+)
+CRBB_SEEDS <- c(teacher = 1883301060L, classmate = 1863497163L)
+PUBLISHED_K_G30 <- 1.07888669019652
+paper_b_archive <- Sys.getenv(
+  "BAYESMOKKEN_PAPER_B_ARCHIVE",
+  normalizePath(file.path(
+    "..", "paper-B-clustered-polytomous-SWMDK", "manuscript",
+    "manuscript-clustered-v4-arXiv", "analysis", "application",
+    "phase08-swmdk-20261007"
+  ), mustWork = FALSE)
+)
+
+# --- B(historical): the two-stage law of Paper B v3 --------------------------
 SWMDK_TASK <- list(
   teacher_respondent    = "P17-T01", teacher_equal_cluster   = "P17-T02",
   classmate_respondent  = "P17-T07", classmate_equal_cluster = "P17-T08"
 )
-published_swmdk <- list(
+published_two_stage <- list(
   teacher_respondent = list(
     H = 0.619919910686637, ci = c(0.572846061948732, 0.669202776257687)),
   teacher_equal_cluster = list(
@@ -202,19 +237,60 @@ if (!requireNamespace("mokken", quietly = TRUE)) {
     # Observed scores are 1..5 (the documented 0..4 coding is a shift; the
     # package object is already scored, so no reverse keying is applied).
     sup <- stats::setNames(rep(list(1:5), length(items)), items)
+    stored <- NULL
+    stored_path <- file.path(paper_b_archive, "execution",
+                             sprintf("APP8-%s-S01.rds", sc))
+    if (file.exists(stored_path)) stored <- readRDS(stored_path)
 
     for (tg in c("respondent", "equal_cluster")) {
       key <- paste0(sc, "_", tg)
-      pub <- published_swmdk[[key]]
+      pub <- published_crbb[[key]]
 
       # --- B1. deterministic point estimate --------------------------------
       det <- mokken_h(dat, item_type = "ordinal", supports = sup,
-                      cluster = cluster, cluster_target = tg,
-                      weight_law = "hierarchical_cluster", warn = FALSE)
+                      cluster = cluster, cluster_target = tg, warn = FALSE)
       record("B/SWMDK", paste(key, "point H (deterministic)"),
              pub$H, det$scale$H, TOL_EXACT)
 
-      # --- B2. interval algorithm on the ARCHIVED draws ---------------------
+      # --- B2. interval algorithm on the ARCHIVED complete-record draws ----
+      if (!is.null(stored)) {
+        archive_target <- if (identical(tg, "respondent")) "respondent" else "cluster"
+        itv <- bayesmokken:::.bm_crbb_interval_from_draws(
+          bb_draws = stored$draws[[archive_target]],
+          point_estimate = det$scale$H,
+          n_complete = det$provenance$n_complete,
+          cluster_count = 30L, cluster_target = tg,
+          interval = "calibrated", level = 0.95
+        )
+        record("B/SWMDK", paste(key, "adjusted endpoints from archived draws"),
+               pub$ci, c(itv$lower, itv$upper), TOL_EXACT)
+        record("B/SWMDK", paste(key, "k_G"), PUBLISHED_K_G30,
+               itv$width_multiplier, TOL_EXACT)
+      } else {
+        cat("  [SKIP] clustered-article archive draws not found for ", key,
+            "\n", sep = "")
+      }
+
+      # --- B3. plain package call at the archive seed ----------------------
+      # The complete-record stream is the archive's stream, so this is an
+      # exactness check up to summation order (observed 3e-13), not an MC band.
+      fit <- bb_mokken_h(dat, item_type = "ordinal", supports = sup,
+                         cluster = cluster, cluster_target = tg,
+                         weight_law = "complete_record",
+                         draws = 9999L, seed = CRBB_SEEDS[[sc]], warn = FALSE)
+      record("B/SWMDK", paste(key, "plain call endpoints (archive seed, 1e-9)"),
+             pub$ci, c(fit$interval$lower, fit$interval$upper), 1e-9)
+      if (!is.null(stored)) {
+        archive_target <- if (identical(tg, "respondent")) "respondent" else "cluster"
+        # 9,999 draws per target: record the element-wise maximum difference
+        # as one scalar, not the vectors themselves, so the receipt stays small.
+        record("B/SWMDK", paste(key, "plain call draws vs archived draws (max abs)"),
+               0, max(abs(stored$draws[[archive_target]] - fit$draws$scale)),
+               1e-9)
+      }
+
+      # --- B4 (historical). the two-stage law of Paper B v3 ----------------
+      pub_two_stage <- published_two_stage[[key]]
       gz <- file.path(research_root, "v4", "cluster-polytomous",
                       "empirical-swmdk", "phase17", "aws-raw",
                       paste0(SWMDK_TASK[[key]], "-draws-v1.csv.gz"))
@@ -228,24 +304,26 @@ if (!requireNamespace("mokken", quietly = TRUE)) {
           cluster_count = 30L, cluster_target = tg,
           interval = "calibrated", level = 0.95
         )
-        record("B/SWMDK", paste(key, "endpoints from archived draws"),
-               pub$ci, c(itv$lower, itv$upper), TOL_EXACT)
-        record("B/SWMDK", paste(key, "width multiplier"),
+        record("B/SWMDK", paste(key, "historical endpoints from v3 archived draws"),
+               pub_two_stage$ci, c(itv$lower, itv$upper), TOL_EXACT)
+        record("B/SWMDK", paste(key, "historical width multiplier"),
                PUBLISHED_MULTIPLIER_G30, itv$width_multiplier, TOL_EXACT)
       } else {
-        cat("  [SKIP] archived draws not found for ", key, "\n", sep = "")
+        cat("  [SKIP] v3 archived draws not found for ", key, "\n", sep = "")
       }
-
-      # --- B3. Monte Carlo agreement of a plain package call ---------------
-      # Band 0.02: the published run used 99,999 draws; this call uses 4,000,
-      # and the article's own split-half endpoint spread was 8.8e-4 at the
-      # published draw count. This is a pipeline smoke check only.
-      fit <- bb_mokken_h(dat, item_type = "ordinal", supports = sup,
-                         cluster = cluster, cluster_target = tg,
-                         weight_law = "hierarchical_cluster",
-                         draws = 4000L, seed = 1L, warn = FALSE)
-      record("B/SWMDK", paste(key, "plain call endpoints (MC band 0.02)"),
-             pub$ci, c(fit$interval$lower, fit$interval$upper), 0.02)
+      # Band 0.02: the v3 run used 99,999 draws; this call uses 4,000, and the
+      # article's own split-half endpoint spread was 8.8e-4 at the published
+      # draw count. A pipeline smoke check of the historical lane only.
+      historical <- suppressWarnings(
+        bb_mokken_h(dat, item_type = "ordinal", supports = sup,
+                    cluster = cluster, cluster_target = tg,
+                    weight_law = "hierarchical_cluster",
+                    draws = 4000L, seed = 1L, warn = FALSE),
+        classes = "bm_historical_method_warning"
+      )
+      record("B/SWMDK", paste(key, "historical plain call (MC band 0.02)"),
+             pub_two_stage$ci,
+             c(historical$interval$lower, historical$interval$upper), 0.02)
     }
   }
 }

@@ -155,7 +155,6 @@ test_that("clustered pair intervals use the same collision-safe identity", {
     supports = supports,
     cluster = cluster,
     cluster_target = "respondent",
-    weight_law = "hierarchical_cluster",
     draws = 40,
     seed = 743,
     warn = FALSE

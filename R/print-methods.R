@@ -29,9 +29,30 @@ print.bm_h_interval <- function(x, digits = 3L, ...) {
     .bm_field("range", semantics$validation_range)
   }
   .bm_field("point", .bm_num(x$point_estimate, digits))
-  .bm_field("calibrated", .bm_ci(x$lower, x$upper, digits),
-            "        width x ", .bm_num(x$width_multiplier, 4L),
-            "  (gamma = ", .bm_num(x$gamma, 2L), ")")
+  construction <- x$construction
+  if (identical(construction, "reflected_error_expansion_about_point")) {
+    .bm_field("adjusted", .bm_ci(x$lower, x$upper, digits),
+              "        width x ", .bm_num(x$width_multiplier, 4L),
+              "  (k_G = ", .bm_num(x$root_multiplier, 4L),
+              ", reflected about the point estimate)")
+    if (isTRUE(x$set_empty)) {
+      .bm_field("", sprintf(
+        "! empty confidence set: reflected endpoints %s lie above 1",
+        .bm_ci(x$reflected_lower, x$reflected_upper, digits)))
+    } else if (isTRUE(x$upper_intersection)) {
+      .bm_field("", sprintf(
+        "upper endpoint capped at 1 (reflected upper endpoint %s)",
+        .bm_num(x$reflected_upper, digits)))
+    }
+  } else if (identical(construction, "percentile")) {
+    .bm_field("percentile", .bm_ci(x$lower, x$upper, digits),
+              "        width x ", .bm_num(x$width_multiplier, 4L),
+              "  (no adjustment)")
+  } else {
+    .bm_field("calibrated", .bm_ci(x$lower, x$upper, digits),
+              "        width x ", .bm_num(x$width_multiplier, 4L),
+              "  (gamma = ", .bm_num(x$gamma, 2L), ")")
+  }
   .bm_field("raw", .bm_ci(x$raw_lower, x$raw_upper, digits),
             "        quantile type ", x$quantile_type,
             ", clipping ", tolower(x$endpoint_clipping))

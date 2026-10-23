@@ -1,7 +1,18 @@
 new_bm_ordinal_empirical_h <- function(
     pair, item, scale, complete, moments, zero_tol, eta,
     cluster_info = NULL, cluster_target = "respondent",
-    knot_diagnostics = NULL) {
+    knot_diagnostics = NULL, weight_law = NULL) {
+  # The declared law is provenance: the deterministic coefficient does not
+  # depend on it, but the object records which random-weight law
+  # bb_mokken_h() would apply. Unclustered ordinal fits are iid-respondent;
+  # clustered fits default to the complete-record law.
+  declared_law <- if (is.null(cluster_info)) {
+    "iid_respondent"
+  } else if (is.null(weight_law) || identical(weight_law, "auto")) {
+    "complete_record"
+  } else {
+    weight_law
+  }
   target_id <- if (identical(cluster_target, "equal_cluster")) {
     "V4-TARGET-EQUAL-CLUSTER-v1"
   } else {
@@ -33,11 +44,7 @@ new_bm_ordinal_empirical_h <- function(
           "finite-support comonotone maximum covariance",
         item_aggregation = "ratio_of_sums",
         scale_aggregation = "ratio_of_sums",
-        weight_law = if (is.null(cluster_info)) {
-          "iid_respondent"
-        } else {
-          "hierarchical_cluster"
-        }
+        weight_law = declared_law
       ),
       provenance = list(
         n_total = complete$n_total,
@@ -64,11 +71,7 @@ new_bm_ordinal_empirical_h <- function(
         },
         cluster_count = if (is.null(cluster_info)) NULL else cluster_info$G,
         cluster_sizes = if (is.null(cluster_info)) NULL else cluster_info$sizes,
-        weight_law = if (is.null(cluster_info)) {
-          "iid_respondent"
-        } else {
-          "hierarchical_cluster"
-        }
+        weight_law = declared_law
       ),
       knot_diagnostics = knot_diagnostics,
       tolerances = list(zero_tol = zero_tol, eta = eta),

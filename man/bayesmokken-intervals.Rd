@@ -19,17 +19,27 @@ quantiles as sampling-uncertainty endpoints on the binary path. It is not a
 finite-sample coverage theorem, and it does not license a posterior reading.
 }
 
-\section{Clustered empirical warrant}{
+\section{Clustered first-order rationale}{
 
-The clustered path draws one Dirichlet\eqn{(1,\ldots,1)} vector over
-clusters and, independently within every cluster, another
-Dirichlet\eqn{(1,\ldots,1)} vector over respondents. No conditional
-first-order matching theorem is claimed for that hierarchical law. Its
-warrant is the target-exact weight construction, numerical diagnostics, and
-prespecified held-out simulation confirmation. That confirmation covered
-polytomous designs with cluster counts \eqn{G \in \{22,35,55,80\}}; it does
-not establish universal coverage for other support structures or cluster
-counts.
+When clusters are the independent sampling units, the first-order sampling
+law of the coefficient is driven by the cluster-level influence values, and
+the variation of responses inside a sampled cluster is already part of
+them. The complete-record law draws one Dirichlet\eqn{(1,\ldots,1)} vector
+over the clusters and reweights the records without touching their
+contents; conditionally on the data its draws of \eqn{H} have the same
+first-order limit as the sampling distribution. A second, independent
+Dirichlet reweighting within every cluster, the two-stage law of version
+0.9.0, adds a nonnegative first-order variance term
+\eqn{2E\{c^2 v/(M+1)\}} that no deterministic multiplier tending to one can
+remove; that law is retained only as the historical option. The percentile
+interval of the complete-record draws inherits first-order coverage but
+undercovers with few clusters, which is what the finite-cluster adjustment
+below repairs. The adjusted interval was selected between two prespecified
+candidates on development data, screened once on validation data, and then
+confirmed on 41,000 fresh datasets over 21 regular conditions with cluster
+counts 22, 30, 35, 55, 80, 160 and 320, where it covered .947 and .949 for
+the two targets. That is evidence for those designs, not a universal
+theorem for other supports or cluster counts.
 }
 
 \section{What the number is not}{
@@ -45,31 +55,38 @@ the coefficient of the population you sampled, not about future responses.
 }
 }
 
-\section{The width correction}{
+\section{The constructions}{
 
-The raw equal-tailed bootstrap interval is not left alone. Its width is
-multiplied by a fixed factor:
+The raw percentile bootstrap interval \eqn{[q_L, q_U]} is not left alone.
+On the binary path its width is multiplied by a fixed factor about its
+midpoint:
 
-\deqn{[m - c\,w,\; m + c\,w], \qquad
-  c = 1 + \frac{0.25}{\sqrt{n}} \ \text{(binary)}, \qquad
-  c = 1 - \frac{1.5}{\sqrt{G}} \ \text{(clustered)}}
+\deqn{[m - c\,w,\; m + c\,w], \qquad c = 1 + \frac{0.25}{\sqrt{n}},}
 
 where \eqn{m} is the midpoint of the raw interval and \eqn{w} its
-half-width. The midpoint never moves, endpoints are never clipped, and no
-alternative method is ever substituted for a difficult sample. The
-constants were fixed on training data, checked on disjoint held-out
-conditions, and then locked; they are not arguments. For the clustered
-correction, the confirmed cluster-count envelope is 22--80, and smaller
-cluster counts are refused by the calibrated public path.
+half-width. On the default clustered path the error quantiles are reflected
+about the point estimate \eqn{\hat H} and expanded:
 
-Both the raw and the corrected endpoints are on every result, and both are
+\deqn{[\hat H - k_G (q_U - \hat H),\; \hat H - k_G (q_L - \hat H)]
+  \cap (-\infty, 1], \qquad
+  k_G = \sqrt{\frac{G+1}{G-1}}\, \frac{t_{G-1,.975}}{z_{.975}}.}
+
+The center of that reflection is the point estimate, not the midpoint, so
+the reported interval need not contain \eqn{\hat H}; an empty intersection
+is reported as an empty set, never as \eqn{[1, 1]}, and negative values are
+retained. The historical clustered path narrowed the raw interval about its
+midpoint by \eqn{c = 1 - 1.5/\sqrt{G}}. The constants and the construction
+are not arguments, and no alternative method is ever substituted for a
+difficult sample.
+
+Both the raw and the reported endpoints are on every result, and both are
 drawn by \code{\link[=bm_plot_draws]{bm_plot_draws()}}, so you can always see exactly what the
-correction did.
+construction did.
 }
 
 \section{Only the scale coefficient is calibrated}{
 
-The correction was developed and validated for the \strong{scale-level}
+The constructions were developed and validated for the \strong{scale-level}
 coefficient. Item- and pair-level draws are available and useful, but their
 coverage has never been checked. The package reports them as raw quantiles,
 labels them \code{uncalibrated}, and draws them dashed and faded. Treat them as
@@ -79,8 +96,9 @@ same standing as the scale interval.
 
 \section{How many draws}{
 
-The frozen default is 2,000. Whether that is enough for your data is an
-empirical question about Monte Carlo error, which
+The frozen default is 2,000; the clustered article fixed 9,999 for its
+application and its confirmation. Whether a count is enough for your data
+is an empirical question about Monte Carlo error, which
 \code{\link[=bm_mc_diagnostics]{bm_mc_diagnostics()}} and \code{\link[=bm_plot_mc_stability]{bm_plot_mc_stability()}} answer.
 }
 

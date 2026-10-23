@@ -21,8 +21,9 @@ about both.
 Respondents in the same classroom resemble one another more than respondents
 drawn at random. An interval computed as though all 614 pupils were independent
 therefore counts each one as carrying more information than it does, and comes
-out too narrow. The remedy is a bootstrap that resamples *classrooms* and then
-pupils within them.
+out too narrow. The remedy is a bootstrap whose sampling unit is the
+*classroom*: whole classrooms are reweighted, and what happens inside a
+classroom is left exactly as it was observed.
 
 The second change is easier to miss and harder to undo. Once respondents are
 grouped, **"the average" stops having one meaning.**
@@ -94,7 +95,7 @@ fit_resp <- bb_mokken_h(
   supports       = sup,
   cluster        = as.character(classroom_wb$class_id),
   cluster_target = "respondent",
-  weight_law     = "hierarchical_cluster",
+  weight_law     = "complete_record",
   draws          = 2000,
   seed           = 1
 )
@@ -103,8 +104,14 @@ fit_resp
 
 Six arguments, each of which the package refuses to choose for you:
 `item_type` and `supports` fix the denominator, `cluster` supplies the
-grouping, `cluster_target` names the estimand, `weight_law` selects the
-two-stage bootstrap, and `seed` makes it reproducible.
+grouping, `cluster_target` names the estimand, `weight_law` names the
+bootstrap law (`"complete_record"` is what `"auto"` resolves to once a cluster
+is supplied, so writing it out is a declaration, not a change), and `seed`
+makes it reproducible.
+
+The printed `raw` line is the percentile interval of the draws; the reported
+interval is built from it as the next section describes, which is why the two
+do not share a midpoint.
 
 ## Comparing the two targets
 
@@ -115,7 +122,7 @@ fit_equal <- bb_mokken_h(
   supports       = sup,
   cluster        = as.character(classroom_wb$class_id),
   cluster_target = "equal_cluster",
-  weight_law     = "hierarchical_cluster",
+  weight_law     = "complete_record",
   draws          = 2000,
   seed           = 1
 )
@@ -129,103 +136,118 @@ here. That gap is not error, and it will not shrink with more data — it is the
 difference between two population quantities. Report which one you estimated.
 
 > **Minimum interpretation contract.** This is a repeated-sampling CI for a
-> fixed declared item set. Calibration applies to the scale coefficient only;
-> item and pair intervals are uncalibrated. Landmarks are descriptive. The
-> cluster target is substantive. Cluster counts 22–80 are confirmed, counts
-> above 80 are marked extrapolated, and counts below 22 are refused on the
-> calibrated route.
+> fixed declared item set. The interval construction was validated for the
+> scale coefficient only; item and pair intervals are uncalibrated. Landmarks
+> are descriptive. The cluster target is substantive. The interval is
+> computable for two or more clusters; the confirmation evidence covers 22 to
+> 320 clusters, and the result says on which side of that range it falls.
 
-## The correction runs the other way
+## What the adjustment does
 
-For binary scales the correction *widens* the interval. Here it **narrows** it:
+The complete-record bootstrap draws one Dirichlet weight per classroom and
+recomputes $H$ under those weights. Its percentile interval tracks the
+sampling variance of the coefficient, but with few clusters it comes out a
+little too short. The reported interval therefore does two things to the
+percentile quantiles $q_L$ and $q_U$: it **reflects** them about the point
+estimate $\hat H$, and it **expands** the reflected errors by a factor that
+depends on the number of clusters,
+
+$$k_G = \sqrt{\frac{G+1}{G-1}}\;\frac{t_{G-1,\,.975}}{z_{.975}},
+\qquad
+\bigl[\hat H - k_G (q_U - \hat H),\ \hat H - k_G (q_L - \hat H)\bigr]
+\cap (-\infty, 1].$$
 
 ```{r multiplier}
 iv <- bm_interval(fit_resp)
-c(multiplier = iv$width_multiplier,
-  clusters = iv$cluster_count, respondents = iv$n_complete)
+c(k_G = iv$width_multiplier, clusters = iv$cluster_count,
+  respondents = iv$n_complete)
+data.frame(
+  raw = c(iv$raw_lower, iv$raw_upper),
+  reflected = c(iv$reflected_lower, iv$reflected_upper),
+  reported = c(iv$lower, iv$upper),
+  row.names = c("lower", "upper")
+)
 ```
 
-```{r fig-calibration, fig.alt = "Clustered width multiplier versus cluster count: solid from 22 through 80 where confirmation was conducted, dashed outside that range to mark extrapolation, and increasing toward one."}
+Both operations are visible in the object: `raw_lower`/`raw_upper` are the
+percentile quantiles, `reflected_lower`/`reflected_upper` the reflected and
+expanded endpoints, and `lower`/`upper` the reported interval after the
+intersection with $(-\infty, 1]$. Here nothing crosses one, so the reflected
+and reported endpoints coincide; when the upper reflected endpoint exceeds
+one, `upper_intersection` is `TRUE` and the reported upper endpoint is one.
+
+```{r fig-calibration, fig.alt = "Interval multiplier k_G against the number of clusters: above one, decreasing toward one, solid from 22 through 320 where the confirmation was conducted and dashed outside that range."}
 bm_plot_calibration(mode = "clustered")
 ```
 
-The uncorrected two-stage interval turned out to be too *wide*, so the
-correction $1 - 1.5/\sqrt{G}$ pulls it in — here to
-`r fmt_h(iv$width_multiplier, 4)`, a change of `r fmt_width_change(iv)`. The
-multiplier depends on the number of clusters $G$, not the number of
-respondents, because it is the cluster count that governs how much the
-two-stage bootstrap overstates.
+The multiplier is a prespecified function of $G$, not a constant tuned on
+data: at $G = 22$ it is about 1.11, at $G = 30$ about 1.08, at $G = 320$ about
+1.01, and it tends to one as the number of clusters grows. It depends on the
+number of clusters, not the number of respondents, because it is the cluster
+count that governs how far the percentile interval falls short.
 
-**$G$ matters more than you might expect.** At $G = 22$ the multiplier is
-roughly 0.68 — a substantial narrowing. The public contract has three regions:
-below 22 the calibrated call fails; 22–80 is confirmed; above 80 the call
-returns a result with a typed extrapolation warning and
-`EXTRAPOLATED_CLUSTER_COUNT` metadata.
+## How many clusters
 
-```{r g-refusal, error = TRUE}
+The interval is computable for any $G \ge 2$. That is a computational
+requirement, not a recommendation: the confirmation of the clustered article
+covered cluster counts from 22 to 320, and the fit records whether its count
+lies inside that range.
+
+```{r g-outside}
 small <- classroom_wb[classroom_wb$class_id %in% levels(classroom_wb$class_id)[1:10], ]
-bb_mokken_h(
+fit_10 <- bb_mokken_h(
   small[, items], item_type = "ordinal", supports = sup,
   cluster = as.character(droplevels(small$class_id)),
-  cluster_target = "respondent", weight_law = "hierarchical_cluster",
-  draws = 500, seed = 1, interval = "calibrated"
+  cluster_target = "respondent", weight_law = "complete_record",
+  draws = 500, seed = 1
 )
+iv_10 <- bm_interval(fit_10)
+c(G = iv_10$cluster_count, k_G = round(iv_10$width_multiplier, 4),
+  validation_status = iv_10$validation_status)
 ```
 
-Ten classrooms is below the confirmed range, so the calibrated interval is
-refused rather than extrapolated. You are not left without an analysis: the
-deterministic coefficient and the uncorrected comparator both remain available
-at any $G$.
+Ten classrooms run, with `OUTSIDE_CONFIRMED_CLUSTER_COUNT` on the result and
+a visibly larger multiplier. Report that status when you report the interval.
 
-Above 80, the calculation is available but is not re-labelled as confirmed:
+## The earlier procedure, kept as history
 
-```{r g-extrapolation}
-large <- bm_simulate(
-  n = 486, n_items = 3, type = "ordinal", n_categories = 4,
-  clusters = 81, icc = 0.15, seed = 1081
-)
-large_items <- paste0("item", 1:3)
-large_supports <- stats::setNames(rep(list(1:4), 3), large_items)
-warning_class <- NA_character_
-fit_81 <- withCallingHandlers(
+Version 0.9.0 of this package used a two-stage bootstrap that reweighted
+classrooms *and then pupils within classrooms*, and narrowed the resulting
+interval by $1 - 1.5/\sqrt{G}$. The clustered article's current version
+shows why that was the wrong repair: the within-classroom stage adds variance
+of the same order as the sampling variance itself, and no multiplier that
+tends to one can remove it. The procedure is still available, so that results
+computed with the earlier version can be reproduced, but every call says so:
+
+```{r historical}
+warned <- NA_character_
+fit_old <- withCallingHandlers(
   bb_mokken_h(
-    large[, large_items], item_type = "ordinal", supports = large_supports,
-    cluster = as.character(large$cluster), cluster_target = "respondent",
-    weight_law = "hierarchical_cluster", draws = 100, seed = 81,
-    warn = TRUE
+    classroom_wb[, items], item_type = "ordinal", supports = sup,
+    cluster = as.character(classroom_wb$class_id),
+    cluster_target = "respondent", weight_law = "hierarchical_cluster",
+    draws = 2000, seed = 1
   ),
-  bm_cluster_count_extrapolation_warning = function(w) {
-    warning_class <<- class(w)[1]
+  bm_historical_method_warning = function(w) {
+    warned <<- class(w)[1]
     invokeRestart("muffleWarning")
   }
 )
-iv_81 <- bm_interval(fit_81)
-stopifnot(
-  identical(iv_81$validation_status, "EXTRAPOLATED_CLUSTER_COUNT"),
-  identical(iv_81$cluster_count, 81L),
-  identical(warning_class, "bm_cluster_count_extrapolation_warning")
-)
-c(G = iv_81$cluster_count, multiplier = iv_81$width_multiplier,
-  validation_status = iv_81$validation_status,
-  warning_class = warning_class)
+warned
+bm_compare(complete_record = fit_resp, two_stage_historical = fit_old)
 ```
 
-```{r g-alternatives}
-bm_interval(bb_mokken_h(
-  small[, items], item_type = "ordinal", supports = sup,
-  cluster = as.character(droplevels(small$class_id)),
-  cluster_target = "respondent", weight_law = "hierarchical_cluster",
-  draws = 500, seed = 1, interval = "equal_tail", warn = FALSE
-))
-```
-
-Note its `validation_status`. The object says plainly that it makes no
-calibrated claim.
+Same data, same seed, same target: the historical interval is built from
+draws that are more dispersed and then shrunk about their midpoint, and it
+carries its own method identifier so that the two can never be confused in a
+table.
 
 ## The published analysis
 
-Paper B analyses the SWMDK data from the **mokken** package: two scales,
-teacher support and classmate support, rated by pupils in classrooms.
+The clustered article analyses the SWMDK data from the **mokken** package:
+two scales, teacher support and classmate support, rated by pupils in
+classrooms. The package's complete-record stream is the article's archive
+stream, so the article's own seeds reproduce its intervals.
 
 ```{r swmdk, eval = has_mokken}
 utils::data("SWMDK", package = "mokken")
@@ -234,15 +256,18 @@ fit_teacher <- bb_mokken_h(
   SWMDK[, teacher], item_type = "ordinal",
   supports = stats::setNames(rep(list(1:5), length(teacher)), teacher),
   cluster = as.character(SWMDK$classId), cluster_target = "respondent",
-  weight_law = "hierarchical_cluster", draws = 2000, seed = 1
+  weight_law = "complete_record", draws = 9999, seed = 1883301060
 )
-bm_interval(fit_teacher)
+bm_interval(fit_teacher)[c("point_estimate", "lower", "upper",
+                           "width_multiplier", "status")]
 ```
 
 ```{r swmdk-cached, eval = !has_mokken, echo = !has_mokken}
 # The mokken package is not installed, so this section shows the cached fit
 # instead. Install mokken to run it yourself.
-bm_interval(bm_cached("swmdk_teacher_respondent"))
+bm_interval(bm_cached("swmdk_teacher_respondent"))[c("point_estimate", "lower",
+                                                      "upper", "width_multiplier",
+                                                      "status")]
 ```
 
 ```{r swmdk-both, echo = FALSE}
@@ -263,12 +288,16 @@ cat("<p><em>", bm_cached_note("swmdk_classmate_respondent"), "</em></p>",
     sep = "")
 ```
 
-The article reports these at 99,999 draws from the research harness rather than
-from `bb_mokken_h()`, so the endpoints above agree with the published ones to
-Monte Carlo error rather than exactly. The visible notes above identify the
-stored fits. Mandatory G-10 rebuilds and deep-diffs those caches from an
-isolated current-source installation. The separate published-number check uses
-external paper artifacts only when the runner is invoked with `--published`.
+The article reports the teacher scale at $H = .620$ with the interval
+$[.576, .663]$ under the respondent target and the classmate scale at
+$H = .592$, $[.556, .631]$, from 9,999 draws at the seeds used above. The
+endpoints agree with the archive's to about $3 \times 10^{-13}$, the
+difference being the order in which two implementations sum the same weighted
+moments; the published-number gate (`inst/scripts/verify-published-numbers.R`,
+run with `--published`) checks this against the article's own stored draws.
+The visible notes above identify the stored fits, and the ordinary gate
+runner's G-10 rebuilds and deep-diffs those caches from an isolated
+current-source installation.
 
 ## Common errors
 
@@ -283,22 +312,22 @@ bb_mokken_h(srs, cluster = rep(1:25, length.out = nrow(srs)),
 ```
 
 **Explicit two-category clustered input.** Once its supports are declared, the
-call reaches the separate validation-scope refusal: the clustered calibration
-was confirmed for genuinely polytomous items, not a relabelled binary scale.
+call reaches the path-crossing refusal: the clustered procedure was developed
+and confirmed for genuinely polytomous items, not a relabelled binary scale,
+and the refusal holds on every route.
 
 ```{r cross-binary-scope, error = TRUE}
 binary_supports <- stats::setNames(rep(list(0:1), ncol(srs)), names(srs))
 bb_mokken_h(
   srs, item_type = "ordinal", supports = binary_supports,
   cluster = rep(1:25, length.out = nrow(srs)),
-  cluster_target = "respondent", weight_law = "hierarchical_cluster",
+  cluster_target = "respondent", weight_law = "complete_record",
   draws = 200, seed = 1
 )
 ```
 
 **Polytomous items with the independent-respondent law.** If you have clusters,
-use them; if you do not, `bb_mokken_h()` has nothing to resample at the upper
-stage:
+use them; if you do not, `bb_mokken_h()` has no records to reweight:
 
 ```{r cross-ordinal, error = TRUE}
 bb_mokken_h(classroom_wb[, items], item_type = "ordinal", supports = sup,
@@ -310,7 +339,7 @@ bb_mokken_h(classroom_wb[, items], item_type = "ordinal", supports = sup,
 ```{r no-target, error = TRUE}
 bb_mokken_h(classroom_wb[, items], item_type = "ordinal", supports = sup,
             cluster = as.character(classroom_wb$class_id),
-            weight_law = "hierarchical_cluster", draws = 200, seed = 1)
+            weight_law = "complete_record", draws = 200, seed = 1)
 ```
 
 **A cluster vector out of step with the data.** `cluster` is matched by
@@ -319,15 +348,17 @@ way. Subsetting the data without subsetting the cluster vector is the usual
 cause, and it produces a silent misalignment rather than an error — check
 `bm_cluster_info()` against what you expect.
 
-**Singleton clusters.** A classroom with one pupil contributes no within-cluster
-variation. `bm_check_data()` reports them; decide deliberately whether they
-belong in the analysis.
+**Singleton clusters.** A classroom with one pupil is a record of size one. It
+contributes to the between-classroom variation like any other record, and
+nothing inside it varies. `bm_check_data()` reports them; decide deliberately
+whether they belong in the analysis.
 
 ## Where to go next
 
 - `vignette("a4-reporting-and-exporting")` — reporting two targets without
   implying one is the answer.
-- `vignette("m4-hierarchical-bb-targets")` — the two estimands, the two-stage
-  bootstrap, and why the correction reverses direction.
+- `vignette("m4-hierarchical-bb-targets")` — the two estimands, the
+  complete-record bootstrap, why the two-stage law was replaced, and the
+  adjustment.
 - `vignette("m3-polytomous-transport")` — how the polytomous denominator is
   computed exactly.

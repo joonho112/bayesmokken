@@ -13,7 +13,6 @@
     supports = bm_supports(classroom_wb, items = items),
     cluster = as.character(classroom_wb$class_id),
     cluster_target = "respondent",
-    weight_law = "hierarchical_cluster",
     draws = draws,
     seed = 41,
     warn = FALSE

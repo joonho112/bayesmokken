@@ -36,6 +36,14 @@
 #'   `"OK"`, `"OK_WITH_UNDEFINED_DRAWS"`, `"ALL_DRAWS_UNDEFINED"`, or
 #'   `"TOO_FEW_DEFINED_DRAWS"`.
 #'
+#' @section What the diagnostics describe:
+#' The batch and prefix endpoints are rebuilt with the construction the
+#' reported interval used: midpoint-and-half-width scaling on the binary and
+#' the historical clustered paths, and reflection about the point estimate
+#' with the expansion by \eqn{k_G} on the default clustered path, where the
+#' diagnostics describe the endpoints before their intersection with
+#' \eqn{(-\infty, 1]}.
+#'
 #' @examples
 #' fit <- bb_mokken_h(srs, draws = 200, seed = 1)
 #' bm_mc_diagnostics(fit)
@@ -136,7 +144,23 @@ bm_mc_diagnostics <- function(object, level = 0.95, batches = 4L, ...) {
     numeric(2L)
   )
 
+  # The endpoints are rebuilt the way the interval was built. The binary and
+  # the historical clustered constructions scale the half-width about the
+  # percentile midpoint; the complete-record construction reflects the
+  # quantiles about the point estimate and expands the reflected errors. For
+  # the latter the diagnostics describe the endpoints before their
+  # intersection with (-Inf, 1], which is a deterministic cap.
+  reflected <- identical(
+    object$interval$construction, "reflected_error_expansion_about_point"
+  )
+  point <- object$interval$point_estimate
   calibrate <- function(endpoint, multiplier) {
+    if (reflected) {
+      return(c(
+        lower = point - multiplier * (endpoint[2L] - point),
+        upper = point - multiplier * (endpoint[1L] - point)
+      ))
+    }
     midpoint <- (endpoint[1L] + endpoint[2L]) / 2
     halfwidth <- (endpoint[2L] - endpoint[1L]) / 2
     c(

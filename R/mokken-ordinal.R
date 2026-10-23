@@ -1,7 +1,7 @@
 .bm_mokken_h_ordinal <- function(
     selected, score_map, missing_codes, supports,
     weights, row_ids, missing, cluster, cluster_target,
-    zero_tol, eta, warn) {
+    zero_tol, eta, warn, weight_law = "iid_respondent") {
   validated <- bm_validate_ordinal_data(
     selected,
     score_map = score_map,
@@ -72,7 +72,8 @@
     eta = eta,
     cluster_info = cluster_info,
     cluster_target = cluster_target,
-    knot_diagnostics = knot
+    knot_diagnostics = knot,
+    weight_law = weight_law
   )
 
   affected <- c(
