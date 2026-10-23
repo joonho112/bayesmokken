@@ -261,11 +261,11 @@ minima.
 
 | This vignette | Article |
 |---|---|
-| Coefficient definitions | Binary article §3 |
+| Coefficient definitions | Binary article §2.1, Appendix A |
 | Fixed-scale estimand | Binary article §3 |
 | Complete-scale row target | Binary article §3 |
 | Denominator boundaries | Binary article §3, §5 |
-| Two cluster targets | Clustered article §3 |
+| Two cluster targets | Clustered article §3.1 |
 
 ## Where to go next
 

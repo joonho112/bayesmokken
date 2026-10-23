@@ -14,35 +14,38 @@ bibentry(
   url      = "https://github.com/joonho112/bayesmokken"
 )
 
-## NOTE (maintainer): update year, journal, volume, pages, and doi when each
-## article is accepted. Until then both entries are labelled as manuscripts
-## under review, which is what they are.
+## NOTE (maintainer): both articles are preprints. Add each one's repository
+## and identifier (DOI or arXiv number) once it is posted, and the journal,
+## volume, pages and DOI once it is published.
 
 bibentry(
   bibtype  = "Unpublished",
   key      = "lee2026binary",
   title    = paste(
-    "Calibrated Bayesian bootstrap confidence intervals for the",
-    "fixed binary Mokken scalability coefficient"
+    "A Calibrated Bayesian Bootstrap Confidence Interval for Mokken's",
+    "Scale-Level Scalability Coefficient"
   ),
-  author   = person("JoonHo", "Lee"),
+  author   = c(person("JoonHo", "Lee"), person(c("Stefanie", "A."), "Wind")),
   year     = "2026",
-  note     = "Manuscript under review",
+  note     = "Preprint",
   textVersion = paste(
-    "Lee, J. (2026). Calibrated Bayesian bootstrap confidence intervals for",
-    "the fixed binary Mokken scalability coefficient. Manuscript under review."
+    "Lee, J., & Wind, S. A. (2026). A calibrated Bayesian bootstrap confidence",
+    "interval for Mokken's scale-level scalability coefficient. Preprint."
   )
 )
 
 bibentry(
   bibtype  = "Unpublished",
   key      = "lee2026clustered",
-  title    = "Cluster-aware uncertainty for polytomous Mokken scalability",
+  title    = paste(
+    "Cluster-Aware Uncertainty for Polytomous Mokken Scalability:",
+    "A Cluster-Level Bayesian Bootstrap"
+  ),
   author   = person("JoonHo", "Lee"),
   year     = "2026",
-  note     = "Manuscript under review",
+  note     = "Preprint",
   textVersion = paste(
     "Lee, J. (2026). Cluster-aware uncertainty for polytomous Mokken",
-    "scalability. Manuscript under review."
+    "scalability: A cluster-level Bayesian bootstrap. Preprint."
   )
 )

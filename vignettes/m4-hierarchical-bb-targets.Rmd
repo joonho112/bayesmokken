@@ -416,7 +416,7 @@ regular conditions, both targets:
 | Clustered delta interval of **mokken** (respondent target only) | .984 | — |
 
 The adjusted interval was 6% wider than the percentile interval of the same
-draws and 15% narrower than the shrunk two-stage interval. All four
+draws, and the shrunk two-stage interval was 15% wider than the adjusted one. All four
 prespecified criteria (coverage equivalence to $[.93, .97]$, each tail at most
 .04, operational failure at most .005) were established in 36 of the 42
 condition–target assessments; the six that were not are upper-tail criteria
@@ -437,7 +437,7 @@ them at the article's seeds.
 | The complete-record law and the two-stage law | §3.3 |
 | The adjustment $k_G$ | §3.4, §4.1 |
 | Why the two-stage law was replaced | §3.3 (Proposition), §4.2 |
-| Confirmation and comparators | §6, Appendix C |
+| Confirmation and comparators | §5, Appendices C and F |
 | Software | §4.3, Appendix H |
 
 ## Where to go next

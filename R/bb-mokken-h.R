@@ -167,11 +167,11 @@
 #' indexing this structure by hand.
 #'
 #' @references
-#' Lee, J. (2026). Calibrated Bayesian bootstrap confidence intervals for the
-#' fixed binary Mokken scalability coefficient. Manuscript under review.
+#' Lee, J., & Wind, S. A. (2026). A calibrated Bayesian bootstrap confidence
+#' interval for Mokken's scale-level scalability coefficient. Preprint.
 #'
 #' Lee, J. (2026). Cluster-aware uncertainty for polytomous Mokken
-#' scalability. Manuscript under review.
+#' scalability: A cluster-level Bayesian bootstrap. Preprint.
 #'
 #' @examples
 #' # Binary: the published application

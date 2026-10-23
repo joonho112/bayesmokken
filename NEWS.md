@@ -101,7 +101,14 @@ now verifies the current and the historical numbers side by side.
 - The SWMDK caches are now 9,999-draw fits at the archive seeds (scale
   draws only), so the vignette shows the published endpoints.
 - `bm_guardrails()` lists the historical lane and its cluster-count rules.
-- `inst/CITATION` names the clustered article by its current title.
+- `inst/CITATION` and the `bb_mokken_h()` references name both articles by
+  their current titles and authors, as preprints.
+- Vignettes m2 and m5 report the binary article's current evidence: the
+  confirmatory stage and the paired comparison with six standard intervals.
+  The correspondence tables in m1–m5 cite the articles' current sections.
+- The 0.9.0 entry below now states the parity gate's tolerances as released
+  (numeric fields at `1e-12`); it said `tolerance = 0`, which described the
+  build before its release.
 
 ## Release tooling
 
@@ -235,7 +242,9 @@ the default printing uses base R only.
 
 The numbers are the same. `mokken_h()` and `bb_mokken_h()` retain the frozen
 0.0.0.9001 numerical receipts: eight parity fixtures are compared field by
-field at `tolerance = 0`. Published evidence is reported in three distinct
+field, numeric fields at `1e-12` and seeds, policies and RNG settings exactly,
+with the two float-derived clustered digests checked for presence only.
+Published evidence is reported in three distinct
 classes rather than as one machine-precision claim: archived-draw endpoints
 agree within about `5e-16`; deterministic application H values agree within
 about `1.6e-13`; and fresh stochastic calls agree within their prespecified

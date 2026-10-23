@@ -297,11 +297,11 @@ try(bb_mokken_h(srs, draws = 200, seed = 1, level = 0.90))
 
 }
 \references{
-Lee, J. (2026). Calibrated Bayesian bootstrap confidence intervals for the
-fixed binary Mokken scalability coefficient. Manuscript under review.
+Lee, J., & Wind, S. A. (2026). A calibrated Bayesian bootstrap confidence
+interval for Mokken's scale-level scalability coefficient. Preprint.
 
 Lee, J. (2026). Cluster-aware uncertainty for polytomous Mokken
-scalability. Manuscript under review.
+scalability: A cluster-level Bayesian bootstrap. Preprint.
 }
 \seealso{
 \code{\link[=mokken_h]{mokken_h()}} for the coefficient without an interval,

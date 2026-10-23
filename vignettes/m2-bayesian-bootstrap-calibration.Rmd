@@ -211,34 +211,53 @@ distribution nobody specified.
 
 ## The evidence
 
-The confirmatory simulation spanned **four data-generating families** chosen to
-strain the statistic in different ways, over **108,000 replications**, under a
-prespecified rule in which undefined intervals count as misses.
+The binary article evaluates the interval in two stages on the same 32
+population laws, drawn from four data-generating families chosen to strain the
+statistic in different ways (latent monotone conditional independence,
+heterogeneous-margin target control, asymmetric-quality nonexchangeable items,
+and controlled local dependence). Undefined intervals count as misses
+throughout.
 
-| Method | Coverage at nominal 95% |
+**The confirmatory stage** ran 108,000 replications under rules fixed in
+advance and met all 9 prespecified acceptance criteria. In the 22 regular
+cells the calibrated interval covered **94.5% – 95.1%** by family, against
+94.0% – 94.6% for the raw equal-tail interval it widens, at a mean-length cost
+of 2.46% – 2.65%.
+
+**The paired comparison** then drew fresh samples from the same laws and
+computed six standard intervals on every one of them. Coverage over the 22
+regular cells, averaged over the four families:
+
+| Interval | Coverage at nominal 95% |
 |---|---|
-| **Calibrated (this package's default)** | **94.5% – 95.1%** |
-| Influence-function delta-method Wald | 82.6% – 91.8% |
-| BB-based bias-corrected accelerated | as low as 71.4% |
+| **Calibrated BB (this package's default)** | **94.8%** (families 94.5% – 95.0%) |
+| Raw equal-tail BB | 94.4% |
+| Nonparametric bootstrap, percentile | 94.6% |
+| Nonparametric bootstrap, BCa | 95.3% |
+| `mokken` delta-method Wald | 94.1% |
+| `mokken` range-preserving | 94.2% |
 
-The cost of the correction was an increase in mean interval length of **less
-than 3%**. The comparators were implemented under a strict regularity screen,
-and their refusals were counted as misses — the same rule applied to the
-calibrated interval.
+The calibrated interval gained **0.41** percentage points over the raw interval
+(Monte Carlo standard error 0.02) at a mean-length cost of 2.46% – 2.65%. The
+BCa interval covered more, with longer intervals, and neither was uniformly
+closer to nominal across families. Versions of the delta-method and BCa
+constructions screened for regularity, which return no interval at empirical
+margin ties, covered as little as 71.4% by family; the article reports them as
+a diagnostic, not as comparators.
 
 The reason to prefer the calibrated interval is not that it is Bayesian, or
 newer. It is that its coverage was measured, prospectively, under a rule fixed
-in advance.
+in advance, and then checked against the intervals already in use.
 
 ## Correspondence with the article
 
 | This vignette | Binary article |
 |---|---|
-| Bayesian bootstrap, pattern grouping | §4 |
-| Influence function, first-order agreement | §4 |
-| Regular-domain order argument for an $O_p(n^{-1})$ endpoint perturbation | §4 |
-| The correction and its frozen constant | §4 |
-| Confirmatory simulation and comparators | §6 |
+| Bayesian bootstrap, pattern grouping | §2.3; pattern grouping in Appendix H |
+| Influence function, first-order agreement | §3.2 |
+| Regular-domain order argument for an $O_p(n^{-1})$ endpoint perturbation | §3.3 |
+| The correction and its frozen constant | §3.4, §4.2 |
+| Confirmatory stage and paired comparison | §5 |
 
 ## Where to go next
 

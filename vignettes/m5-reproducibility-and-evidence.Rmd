@@ -195,12 +195,16 @@ scientific choice made silently on the user's behalf.
 
 ## The validation record
 
-**Binary path.** Four data-generating families, 108,000 replications,
-prespecified rule with undefined intervals counted as misses. The calibrated
-interval covered 94.5%–95.1% at the nominal 95% level, at a cost of under 3% in
-mean length. An influence-function delta-method Wald interval covered
-82.6%–91.8%, and a bias-corrected accelerated construction as little as 71.4%,
-both under a strict regularity screen whose refusals also counted as misses.
+**Binary path.** Two stages on the same 32 population laws in four families,
+with undefined intervals counted as misses. The confirmatory stage (108,000
+replications) met all 9 prespecified acceptance criteria; the calibrated
+interval covered 94.5%–95.1% by family in the 22 regular cells. A paired
+comparison on fresh samples then computed six standard intervals on each: the
+calibrated interval covered 94.8% (families 94.5%–95.0%), 0.41 percentage
+points more than the raw interval at a mean-length cost of 2.46%–2.65%; the
+nonparametric-bootstrap BCa and percentile intervals covered 95.3% and 94.6%,
+and the `mokken` delta-method Wald and range-preserving intervals 94.1% and
+94.2%.
 
 **Clustered path.** A fresh confirmation of 41,000 datasets on 24
 conditions, 21 of them regular, crossing 22–320 clusters, balanced,
@@ -235,9 +239,12 @@ data.frame(
   version = c("0.0.0.9001 (the articles' results)", "0.9.0 (previous release)",
               "0.10.0 (this release)"),
   scale   = c("665 tests / 791 expectations", "2,320 expectations across 42 files",
-              "280 tests / 3,414 expectations across 48 files")
+              "280 tests / 3,405 expectations across 48 files")
 )
 ```
+
+The 0.10.0 count is the public repository's; in the development tree one
+gallery test that inspects development-only renders adds nine expectations.
 
 The numbers are not in conflict and a later one does not supersede an earlier
 one: the articles' figures describe the version that computed the published
@@ -247,8 +254,10 @@ procedure that version is the archive, and this release's
 it at the article's own seeds.
 
 What connects the two is the parity gate. It compares eight fixtures field by
-field, at `tolerance = 0`, against a reference produced by 0.0.0.9001, subject
-to the five documented additive/corrected fields named in `NEWS.md`. The
+field against a reference produced by 0.0.0.9001 (numeric fields at `1e-12`;
+seeds, policies and RNG settings exactly; two float-derived clustered digests
+for presence only), subject to the five documented additive/corrected fields
+named in `NEWS.md`. The
 ordinary gate runner executes G-1 through G-10; G-10 installs the current source
 into an isolated library and deep-compares every cached fit after removing only
 its build date. The external paper-number gate is separate and opt-in with
@@ -291,9 +300,9 @@ purpose.
 
 | This vignette | Articles |
 |---|---|
-| Transparency and provenance | Both, §5 |
-| Simulation evidence | Binary §6, clustered §6 |
-| Limits | Both, §8 |
+| Transparency and provenance | Binary end matter and Appendix H; clustered §4.4 and Appendix H |
+| Simulation evidence | Binary §5; clustered §5 |
+| Limits | Binary §7.3; clustered §7.4 |
 
 ## Where to go next
 

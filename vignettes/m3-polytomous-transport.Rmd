@@ -232,10 +232,10 @@ not the coefficient but an interval for it whose coverage was measured.
 
 | This vignette | Clustered article |
 |---|---|
-| Comonotone maximisation | §3 |
-| Finite-support transport algorithm | §3 |
-| Knot structure and tolerances | §3 |
-| Relation to the weighted coefficient | §3 |
+| Comonotone maximisation | §3.2, Appendix B.2 |
+| Finite-support transport algorithm | §3.2, Appendix B.2 |
+| Knot structure and tolerances | §3.2, Appendix A.3 |
+| Relation to the weighted coefficient | §2.1, Appendix A.2 |
 
 ## Where to go next
 
