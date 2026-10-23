@@ -170,13 +170,13 @@ but it is not presented as an independent derivation.
 
 ``` r
 bm_cite(fit)
-#> [1] "Lee J (2026). _bayesmokken: Bayesian-Bootstrap Confidence Intervals for"   
-#> [2] "Mokken Scalability_. R package version 0.10.0,"                            
-#> [3] "<https://github.com/joonho112/bayesmokken>."                               
-#> [4] ""                                                                          
-#> [5] "Lee J (2026). \"Calibrated Bayesian bootstrap confidence intervals for the"
-#> [6] "fixed binary Mokken scalability coefficient.\" Manuscript under review."   
-#> [7] ""                                                                          
+#> [1] "Lee J (2026). _bayesmokken: Bayesian-Bootstrap Confidence Intervals for"
+#> [2] "Mokken Scalability_. R package version 0.10.0,"                         
+#> [3] "<https://github.com/joonho112/bayesmokken>."                            
+#> [4] ""                                                                       
+#> [5] "Lee J, Wind SA (2026). \"A Calibrated Bayesian Bootstrap Confidence"    
+#> [6] "Interval for Mokken's Scale-Level Scalability Coefficient.\" Preprint." 
+#> [7] ""                                                                       
 #> [8] "Cite the software and the fixed-binary-scale article."
 ```
 
