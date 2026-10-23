@@ -7,6 +7,8 @@
 #
 #     Rscript inst/scripts/run-all-gates.R
 #     Rscript inst/scripts/run-all-gates.R --published   # + the slow gate
+#     Rscript inst/scripts/run-all-gates.R --published --lib <lib>
+#                     # the slow gate against an installation of this source
 # =============================================================================
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -20,9 +22,9 @@ add <- function(id, name, status, detail) {
   )
 }
 
-run_script <- function(path) {
+run_script <- function(path, extra = character()) {
   out <- suppressWarnings(system2(
-    file.path(R.home("bin"), "Rscript"), c("--vanilla", shQuote(path)),
+    file.path(R.home("bin"), "Rscript"), c("--vanilla", shQuote(path), extra),
     stdout = TRUE, stderr = TRUE
   ))
   list(status = attr(out, "status") %||% 0L, out = out)
@@ -122,10 +124,16 @@ add("G-10", "precomputed cache freshness",
 
 ## Published numbers (opt-in; reads external sources) -------------------------
 if (with_published) {
-  r <- run_script("inst/scripts/verify-published-numbers.R")
+  lib_at <- match("--lib", args)
+  pub_args <- if (!is.na(lib_at) && length(args) > lib_at) {
+    c("--lib", shQuote(args[[lib_at + 1L]]))
+  } else {
+    character()
+  }
+  r <- run_script("inst/scripts/verify-published-numbers.R", pub_args)
   add("PUB", "published numbers (both papers)",
       if (r$status == 0) "PASS" else "FAIL",
-      tail(grep("PASS|FAIL", r$out, value = TRUE), 1))
+      tail(grep("PASS|FAIL|Error", r$out, value = TRUE), 1))
 }
 
 out <- do.call(rbind, gates)

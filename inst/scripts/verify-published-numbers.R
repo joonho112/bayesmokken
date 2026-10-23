@@ -42,8 +42,13 @@
 #      the observed 3e-13 summation-order difference -- on the current
 #      clustered path.
 #
-# Usage (from the package root):
-#     Rscript inst/scripts/verify-published-numbers.R
+# Usage (from the package root), against an installation of this source:
+#     R CMD INSTALL --library=<lib> .
+#     Rscript inst/scripts/verify-published-numbers.R --lib <lib>
+#
+# The gate prints which installed bayesmokken it loaded and refuses to run
+# unless that version equals this source's DESCRIPTION. Without the check, a
+# plain run certifies whichever release the library path holds first.
 #
 # Requires the source datasets and archives, which are NOT bundled:
 #     * SRS  : IRW local database (sha256-checked below)
@@ -53,7 +58,23 @@
 # silently passed.
 # =============================================================================
 
-suppressPackageStartupMessages(library(bayesmokken))
+gate_args <- commandArgs(trailingOnly = TRUE)
+lib_at <- match("--lib", gate_args)
+lib_loc <- if (!is.na(lib_at) && length(gate_args) > lib_at) gate_args[[lib_at + 1L]] else NULL
+if (!file.exists("DESCRIPTION")) {
+  stop("Run this gate from the package root (no DESCRIPTION here).", call. = FALSE)
+}
+source_version <- unname(read.dcf("DESCRIPTION", fields = "Version")[1, 1])
+suppressPackageStartupMessages(library(bayesmokken, lib.loc = lib_loc))
+loaded_from <- dirname(find.package("bayesmokken"))
+loaded_version <- as.character(utils::packageVersion("bayesmokken", lib.loc = loaded_from))
+if (!identical(loaded_version, source_version)) {
+  stop(sprintf(paste0("bayesmokken %s is installed in %s, but this source is %s. ",
+                      "Install the source into a library and pass --lib <path>."),
+               loaded_version, loaded_from, source_version), call. = FALSE)
+}
+cat(sprintf("bayesmokken %s loaded from %s (source DESCRIPTION %s)\n",
+            loaded_version, loaded_from, source_version))
 
 TOL_EXACT <- 1e-12
 results <- list()

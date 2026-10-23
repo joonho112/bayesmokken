@@ -103,6 +103,14 @@ now verifies the current and the historical numbers side by side.
 - `bm_guardrails()` lists the historical lane and its cluster-count rules.
 - `inst/CITATION` names the clustered article by its current title.
 
+## Release tooling
+
+- `inst/scripts/verify-published-numbers.R` prints which installed
+  bayesmokken it loaded and refuses to run unless that version equals the
+  source `DESCRIPTION`; `--lib <path>` selects the library, and
+  `run-all-gates.R --published --lib <path>` passes it through. A plain run
+  previously certified whichever release the library path held first.
+
 ## Unchanged
 
 The binary path, the weighted-coefficient kernel, the deterministic
