@@ -419,10 +419,12 @@ The adjusted interval was 6% wider than the percentile interval of the same
 draws, and the shrunk two-stage interval was 15% wider than the adjusted one. All four
 prespecified criteria (coverage equivalence to $[.93, .97]$, each tail at most
 .04, operational failure at most .005) were established in 36 of the 42
-condition–target assessments; the six that were not are upper-tail criteria
-whose one-sided bounds crossed .04 at some small-$G$ conditions, which the
-article reports as not established rather than as excess. No condition was
-revisited after its outcome existed.
+condition–target assessments. In each of the six remaining assessments, the
+upper-tail criterion was not established: its one-sided bound exceeded .04.
+Two of these assessments also had inconclusive coverage equivalence because
+their Wilson intervals crossed the lower band edge; the other four were
+coverage-equivalent. These results do not establish a tail probability above
+.04. No condition was revisited after its outcome existed.
 
 Applied without retuning to the SWMDK school data (639 pupils in 30
 classrooms), the procedure produces the intervals shown in

@@ -10,6 +10,13 @@ bm_validate_cluster <- function(cluster) {
     )
   }
   label <- as.character(cluster)
+  if (is.numeric(cluster) &&
+      length(unique(label)) != length(unique(cluster))) {
+    .bm_abort(
+      paste("Numeric cluster labels collide under character conversion;",
+            "supply explicit character labels that preserve cluster identity.")
+    )
+  }
   if (any(!nzchar(label))) {
     .bm_abort("`cluster` labels must be nonempty.")
   }
@@ -170,6 +177,23 @@ bm_cluster_hbb_weights <- function(
 .bm_crbb_rng_mapping <- "V4R-DRAW-MAJOR-EXP-GPLUSN-CMRG-v1"
 .bm_crbb_stream_block <- 256L
 
+# A Box-Muller normal cache and user-supplied generator state are not fully
+# represented in .Random.seed. Refuse before changing either generator.
+.bm_validate_archive_rng_kind <- function(kind) {
+  if (any(kind[1:2] == "user-supplied")) {
+    .bm_abort(
+      "User-supplied caller RNG state is unsupported; select a built-in RNG."
+    )
+  }
+  if (identical(kind[2L], "Box-Muller")) {
+    .bm_abort(
+      paste("Box-Muller caller state is unsupported: its hidden normal cache",
+            "cannot be restored. Select Inversion explicitly before calling.")
+    )
+  }
+  invisible(TRUE)
+}
+
 .bm_with_archive_rng <- function(seed, code) {
   if (!is.numeric(seed) || length(seed) != 1L || is.na(seed) ||
       !is.finite(seed) || seed < 0 || seed > .Machine$integer.max ||
@@ -178,6 +202,7 @@ bm_cluster_hbb_weights <- function(
               hint = .bm_hints$seed_integer)
   }
   old_kind <- RNGkind()
+  .bm_validate_archive_rng_kind(old_kind)
   had_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
   old_seed <- if (had_seed) get(".Random.seed", envir = .GlobalEnv) else NULL
   on.exit(.bm_restore_rng(old_kind, had_seed, old_seed), add = TRUE)

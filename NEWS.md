@@ -110,6 +110,13 @@ now verifies the current and the historical numbers side by side.
   (numeric fields at `1e-12`); it said `tolerance = 0`, which described the
   build before its release.
 
+## Input and RNG safeguards
+
+- Distinct numeric cluster labels that collide on character conversion are
+  rejected before grouping; supply explicit character IDs that preserve them.
+- The default complete-record path rejects caller Box-Muller and user-supplied
+  RNG configurations before changing the RNG, so hidden caller state is not lost.
+
 ## Release tooling
 
 - `inst/scripts/verify-published-numbers.R` prints which installed
@@ -117,6 +124,12 @@ now verifies the current and the historical numbers side by side.
   source `DESCRIPTION`; `--lib <path>` selects the library, and
   `run-all-gates.R --published --lib <path>` passes it through. A plain run
   previously certified whichever release the library path held first.
+- The published gate now requires its fixed 43 check IDs, records unavailable
+  inputs per check, and exits nonzero for incomplete verification. The runner
+  reads its structured receipt and refuses an incomplete release pass.
+  --receipt <path.rds> saves a run record separately from the unchanged
+  scientific targets; without it a temporary receipt is written and its path
+  printed. The gate no longer rewrites inst/extdata/published-targets.csv.
 
 ## Unchanged
 

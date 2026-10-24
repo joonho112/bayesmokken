@@ -1,0 +1,44 @@
+check_id,section,check,required_inputs
+PUB-001,A/SRS,source file sha256,srs_source
+PUB-002,A/SRS,scale H (deterministic),srs_source
+PUB-003,A/SRS,complete-scale n,srs_source
+PUB-004,A/SRS,calibrated endpoints from archived draws,srs_source;srs_draws
+PUB-005,A/SRS,raw endpoints from archived draws,srs_source;srs_draws
+PUB-006,A/SRS,width multiplier,srs_source;srs_draws
+PUB-007,A/SRS,defined draws,srs_source;srs_draws
+PUB-008,A/SRS,plain call endpoints (MC band 0.005),srs_source
+PUB-009,A/SRS,plain call point estimate,srs_source
+PUB-010,B/SWMDK,respondents,swmdk
+PUB-011,B/SWMDK,clusters,swmdk
+PUB-012,B/SWMDK,teacher_respondent point H (deterministic),swmdk
+PUB-013,B/SWMDK,teacher_respondent adjusted endpoints from archived draws,swmdk;current_draws
+PUB-014,B/SWMDK,teacher_respondent k_G,swmdk;current_draws
+PUB-015,B/SWMDK,"teacher_respondent plain call endpoints (archive seed, 1e-9)",swmdk
+PUB-016,B/SWMDK,teacher_respondent plain call draws vs archived draws (max abs),swmdk;current_draws
+PUB-017,B/SWMDK,teacher_respondent historical endpoints from v3 archived draws,swmdk;historical_draws
+PUB-018,B/SWMDK,teacher_respondent historical width multiplier,swmdk;historical_draws
+PUB-019,B/SWMDK,teacher_respondent historical plain call (MC band 0.02),swmdk
+PUB-020,B/SWMDK,teacher_equal_cluster point H (deterministic),swmdk
+PUB-021,B/SWMDK,teacher_equal_cluster adjusted endpoints from archived draws,swmdk;current_draws
+PUB-022,B/SWMDK,teacher_equal_cluster k_G,swmdk;current_draws
+PUB-023,B/SWMDK,"teacher_equal_cluster plain call endpoints (archive seed, 1e-9)",swmdk
+PUB-024,B/SWMDK,teacher_equal_cluster plain call draws vs archived draws (max abs),swmdk;current_draws
+PUB-025,B/SWMDK,teacher_equal_cluster historical endpoints from v3 archived draws,swmdk;historical_draws
+PUB-026,B/SWMDK,teacher_equal_cluster historical width multiplier,swmdk;historical_draws
+PUB-027,B/SWMDK,teacher_equal_cluster historical plain call (MC band 0.02),swmdk
+PUB-028,B/SWMDK,classmate_respondent point H (deterministic),swmdk
+PUB-029,B/SWMDK,classmate_respondent adjusted endpoints from archived draws,swmdk;current_draws
+PUB-030,B/SWMDK,classmate_respondent k_G,swmdk;current_draws
+PUB-031,B/SWMDK,"classmate_respondent plain call endpoints (archive seed, 1e-9)",swmdk
+PUB-032,B/SWMDK,classmate_respondent plain call draws vs archived draws (max abs),swmdk;current_draws
+PUB-033,B/SWMDK,classmate_respondent historical endpoints from v3 archived draws,swmdk;historical_draws
+PUB-034,B/SWMDK,classmate_respondent historical width multiplier,swmdk;historical_draws
+PUB-035,B/SWMDK,classmate_respondent historical plain call (MC band 0.02),swmdk
+PUB-036,B/SWMDK,classmate_equal_cluster point H (deterministic),swmdk
+PUB-037,B/SWMDK,classmate_equal_cluster adjusted endpoints from archived draws,swmdk;current_draws
+PUB-038,B/SWMDK,classmate_equal_cluster k_G,swmdk;current_draws
+PUB-039,B/SWMDK,"classmate_equal_cluster plain call endpoints (archive seed, 1e-9)",swmdk
+PUB-040,B/SWMDK,classmate_equal_cluster plain call draws vs archived draws (max abs),swmdk;current_draws
+PUB-041,B/SWMDK,classmate_equal_cluster historical endpoints from v3 archived draws,swmdk;historical_draws
+PUB-042,B/SWMDK,classmate_equal_cluster historical width multiplier,swmdk;historical_draws
+PUB-043,B/SWMDK,classmate_equal_cluster historical plain call (MC band 0.02),swmdk

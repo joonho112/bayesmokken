@@ -128,7 +128,10 @@
 #' @param seed Nonnegative integer seed for the L'Ecuyer-CMRG draw streams.
 #'   Fractional values are rejected rather than truncated, because `1.1` and
 #'   `1L` would otherwise silently give the same answer. Always set it. On the
-#'   default clustered lane the stream is the clustered article's draw-major
+#'   default clustered lane, the caller must use a built-in RNG and must not
+#'   use Box-Muller normals, whose hidden cache cannot be restored. Select
+#'   Inversion normals before calling. On this lane the stream is the clustered
+#'   article's draw-major
 #'   mapping, so the archive's seeds reproduce its draws.
 #' @param batch_size Draws evaluated per processing batch. Affects memory and
 #'   nothing else: changing it does not change which draws are taken.

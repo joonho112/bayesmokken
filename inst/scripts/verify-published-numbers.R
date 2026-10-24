@@ -58,9 +58,14 @@
 # silently passed.
 # =============================================================================
 
+source(file.path("inst", "scripts", "published-check-contract.R"))
 gate_args <- commandArgs(trailingOnly = TRUE)
-lib_at <- match("--lib", gate_args)
-lib_loc <- if (!is.na(lib_at) && length(gate_args) > lib_at) gate_args[[lib_at + 1L]] else NULL
+lib_loc <- bm_pub_option(gate_args, "--lib")
+receipt_path <- bm_pub_option(
+  gate_args, "--receipt", tempfile("bayesmokken-published-", fileext = ".rds")
+)
+if (!grepl("\\.rds$", receipt_path)) stop("--receipt must name an .rds file.")
+if (file.exists(receipt_path)) unlink(receipt_path)
 if (!file.exists("DESCRIPTION")) {
   stop("Run this gate from the package root (no DESCRIPTION here).", call. = FALSE)
 }
@@ -77,29 +82,16 @@ cat(sprintf("bayesmokken %s loaded from %s (source DESCRIPTION %s)\n",
             loaded_version, loaded_from, source_version))
 
 TOL_EXACT <- 1e-12
-results <- list()
-
+state <- bm_pub_contract(".")
 record <- function(section, check, expected, observed, tol, status = NULL) {
-  diff <- if (is.numeric(expected) && is.numeric(observed)) {
-    max(abs(expected - observed))
-  } else {
-    NA_real_
-  }
-  if (is.null(status)) {
-    status <- if (is.na(diff)) "SKIP" else if (diff <= tol) "PASS" else "FAIL"
-  }
-  results[[length(results) + 1L]] <<- data.frame(
-    section = section, check = check,
-    expected = paste(format(expected, digits = 15), collapse = " , "),
-    observed = paste(format(observed, digits = 15), collapse = " , "),
-    max_abs_diff = diff, tolerance = tol, status = status,
-    stringsAsFactors = FALSE
-  )
-  cat(sprintf("  [%s] %-46s  max|diff| = %s\n", status, check,
-              format(diff, digits = 3)))
-  invisible(NULL)
+  bm_pub_record(state, section, check, expected, observed, tol, status)
+}
+mark_skip <- function(input, reason, prefix = NULL) {
+  bm_pub_skip(state, input, reason, prefix)
 }
 
+runtime_error <- NULL
+tryCatch({
 research_root <- Sys.getenv(
   "BAYESMOKKEN_RESEARCH_ROOT",
   normalizePath(file.path("..", "paper-A-bayesian-scalability", "codebase",
@@ -142,7 +134,7 @@ if (file.exists(srs_rds)) {
                        SRS_ITEMS, drop = FALSE]
   srs_wide[] <- lapply(srs_wide, as.numeric)
 } else {
-  cat("  [SKIP] SRS source not found at ", srs_rds, "\n", sep = "")
+  mark_skip("srs_source", paste("SRS source not found:", srs_rds))
 }
 
 if (!is.null(srs_wide)) {
@@ -178,7 +170,7 @@ if (!is.null(srs_wide)) {
     record("A/SRS", "defined draws", published_srs$draws,
            itv$defined_draws, 0)
   } else {
-    cat("  [SKIP] archived SRS draws not found\n")
+    mark_skip("srs_draws", paste("Archived SRS draws not found:", draw_rds))
   }
 
   # --- A3. Monte Carlo agreement of a plain package call -------------------
@@ -244,7 +236,7 @@ published_two_stage <- list(
 PUBLISHED_MULTIPLIER_G30 <- 0.7261387212474169
 
 if (!requireNamespace("mokken", quietly = TRUE)) {
-  cat("  [SKIP] package 'mokken' not installed; SWMDK section skipped\n")
+  mark_skip("swmdk", "Required package 'mokken' is not installed.")
 } else {
   utils::data("SWMDK", package = "mokken", envir = environment())
   swmdk <- get("SWMDK", envir = environment())
@@ -288,8 +280,9 @@ if (!requireNamespace("mokken", quietly = TRUE)) {
         record("B/SWMDK", paste(key, "k_G"), PUBLISHED_K_G30,
                itv$width_multiplier, TOL_EXACT)
       } else {
-        cat("  [SKIP] clustered-article archive draws not found for ", key,
-            "\n", sep = "")
+        mark_skip("current_draws",
+                  paste("Clustered-article draws not found:", stored_path),
+                  prefix = paste0(sc, "_"))
       }
 
       # --- B3. plain package call at the archive seed ----------------------
@@ -330,7 +323,8 @@ if (!requireNamespace("mokken", quietly = TRUE)) {
         record("B/SWMDK", paste(key, "historical width multiplier"),
                PUBLISHED_MULTIPLIER_G30, itv$width_multiplier, TOL_EXACT)
       } else {
-        cat("  [SKIP] v3 archived draws not found for ", key, "\n", sep = "")
+        mark_skip("historical_draws",
+                  paste("Historical draws not found:", gz), prefix = key)
       }
       # Band 0.02: the v3 run used 99,999 draws; this call uses 4,000, and the
       # article's own split-half endpoint spread was 8.8e-4 at the published
@@ -349,19 +343,17 @@ if (!requireNamespace("mokken", quietly = TRUE)) {
   }
 }
 
-# =============================================================================
-# Summary
-# =============================================================================
-out <- do.call(rbind, results)
+}, error = function(e) {
+  runtime_error <<- conditionMessage(e)
+})
+
+receipt <- bm_pub_finish(
+  state, receipt_path, source_version, loaded_version, loaded_from,
+  runtime_error = runtime_error
+)
 cat("\n== SUMMARY ===================================================\n")
-print(table(out$status))
-failed <- out[out$status == "FAIL", , drop = FALSE]
-if (nrow(failed)) {
-  cat("\nFAILURES:\n"); print(failed[, c("section", "check", "max_abs_diff")])
-}
-target_csv <- file.path("inst", "extdata", "published-targets.csv")
-if (dir.exists(dirname(target_csv))) {
-  utils::write.csv(out, target_csv, row.names = FALSE)
-  cat("\nWritten: ", target_csv, "\n", sep = "")
-}
-invisible(if (nrow(failed)) quit(status = 1) else out)
+print(table(factor(receipt$checks$status, levels = c("PASS", "FAIL", "SKIP"))))
+cat("PUBLISHED_STATUS:", receipt$status, "\n")
+if (!is.null(runtime_error)) cat("Error:", runtime_error, "\n")
+cat("Receipt:", normalizePath(receipt_path, mustWork = TRUE), "\n")
+quit(status = switch(receipt$status, PASS = 0L, INCOMPLETE = 2L, 1L))

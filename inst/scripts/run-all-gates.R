@@ -13,6 +13,7 @@
 
 args <- commandArgs(trailingOnly = TRUE)
 with_published <- "--published" %in% args
+source(file.path("inst", "scripts", "published-check-contract.R"))
 
 gates <- list()
 add <- function(id, name, status, detail) {
@@ -72,7 +73,7 @@ r <- run_tests("zzz-uncalibrated-labels", "labels")
 add("G-5", "uncalibrated item/pair labels", r$status, r$detail)
 
 ## G-6 ------------------------------------------------------------------------
-r <- run_tests("rng-determinism|public-api-deterministic", "rng")
+r <- run_tests("rng-determinism|rng-caller-state|public-api-deterministic", "rng")
 add("G-6", "reproducibility (seed / RNG)", r$status, r$detail)
 
 ## G-7 ------------------------------------------------------------------------
@@ -124,16 +125,23 @@ add("G-10", "precomputed cache freshness",
 
 ## Published numbers (opt-in; reads external sources) -------------------------
 if (with_published) {
-  lib_at <- match("--lib", args)
-  pub_args <- if (!is.na(lib_at) && length(args) > lib_at) {
-    c("--lib", shQuote(args[[lib_at + 1L]]))
-  } else {
-    character()
-  }
+  pub_lib <- bm_pub_option(args, "--lib")
+  pub_receipt <- bm_pub_option(
+    args, "--receipt", tempfile("bayesmokken-published-", fileext = ".rds")
+  )
+  pub_args <- c("--receipt", shQuote(pub_receipt))
+  if (!is.null(pub_lib)) pub_args <- c(pub_args, "--lib", shQuote(pub_lib))
+  # A failed child must not be certified with an earlier successful receipt.
+  if (file.exists(pub_receipt)) unlink(pub_receipt)
   r <- run_script("inst/scripts/verify-published-numbers.R", pub_args)
-  add("PUB", "published numbers (both papers)",
-      if (r$status == 0) "PASS" else "FAIL",
-      tail(grep("PASS|FAIL|Error", r$out, value = TRUE), 1))
+  parsed <- tryCatch(
+    bm_pub_read_receipt(pub_receipt, bm_pub_contract("."), r$status),
+    error = function(e) list(
+      status = "FAIL",
+      detail = paste(conditionMessage(e), paste(tail(r$out, 3L), collapse = " "))
+    )
+  )
+  add("PUB", "published numbers (both papers)", parsed$status, parsed$detail)
 }
 
 out <- do.call(rbind, gates)
@@ -148,4 +156,5 @@ cat("\n", nrow(out), " gates: ", sum(out$status == "PASS"), " PASS, ",
 if (!with_published) {
   cat("(PUB was NOT RUN; release receipts require --published)\n")
 }
-invisible(if (n_fail) quit(status = 1))
+release_incomplete <- with_published && any(out$status != "PASS")
+invisible(if (n_fail || release_incomplete) quit(status = 1))

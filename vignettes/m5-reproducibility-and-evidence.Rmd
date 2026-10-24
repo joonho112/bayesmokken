@@ -239,12 +239,14 @@ data.frame(
   version = c("0.0.0.9001 (the articles' results)", "0.9.0 (previous release)",
               "0.10.0 (this release)"),
   scale   = c("665 tests / 791 expectations", "2,320 expectations across 42 files",
-              "280 tests / 3,405 expectations across 48 files")
+              "287 tests / 3,444 passing expectations across 51 files")
 )
 ```
 
-The 0.10.0 count is the public repository's; in the development tree one
-gallery test that inspects development-only renders adds nine expectations.
+The 0.10.0 count is the public repository's verification run: 3,444
+expectations passed and one gallery test was skipped because it requires
+development-only renders (3,445 total testthat records). That gallery test
+adds nine expectations when its development-only renders are available.
 
 The numbers are not in conflict and a later one does not supersede an earlier
 one: the articles' figures describe the version that computed the published
