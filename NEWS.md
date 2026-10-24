@@ -94,6 +94,9 @@ now verifies the current and the historical numbers side by side.
 
 ## Documentation
 
+- The package hex sticker now highlights H and its confidence intervals;
+  the README, pkgdown logo, and browser icons share the same design.
+
 - Vignettes a3 and m4 describe the complete-record law, the adjustment, the
   cluster-count metadata and the historical option; m4 carries an
   independent reimplementation of the archive stream as its oracle. m5's

@@ -1,7 +1,7 @@
 
 <!-- README.md is generated from README.Rmd. Edit the .Rmd and re-knit. -->
 
-# bayesmokken <img src="man/figures/logo.svg" align="right" height="132" alt="bayesmokken hex sticker: a teal hexagon enclosing a scalability coefficient with its confidence interval" />
+# bayesmokken <img src="man/figures/logo.svg" align="right" height="132" alt="bayesmokken hex sticker: a teal hexagon containing H, a copper point estimate, and nested confidence intervals" />
 
 <!-- badges: start -->
 

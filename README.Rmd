@@ -18,7 +18,7 @@ knitr::opts_chunk$set(
 options(width = 84)
 ```
 
-# bayesmokken <img src="man/figures/logo.svg" align="right" height="132" alt="bayesmokken hex sticker: a teal hexagon enclosing a scalability coefficient with its confidence interval" />
+# bayesmokken <img src="man/figures/logo.svg" align="right" height="132" alt="bayesmokken hex sticker: a teal hexagon containing H, a copper point estimate, and nested confidence intervals" />
 
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/joonho112/bayesmokken/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/joonho112/bayesmokken/actions/workflows/R-CMD-check.yaml)

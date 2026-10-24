@@ -10,3 +10,16 @@ dev/parity/lib/
 inst/doc
 Rplots.pdf
 .Renviron
+dev/
+log/
+*.Rproj
+README.html
+*.Rout
+*.Rout.fail
+*.Rout.save
+*.Rout.pdf
+*.Rout.png
+*.Rout.svg
+.quarto/
+_freeze/
+_cache/
