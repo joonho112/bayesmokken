@@ -96,6 +96,9 @@ now verifies the current and the historical numbers side by side.
 
 - The package hex sticker now highlights H and its confidence intervals;
   the README, pkgdown logo, and browser icons share the same design.
+- The m4 vignette checks interval values reconstructed from a cached fit at
+  `1e-12`, allowing for platform rounding in `qt()` and `qnorm()`. Checks
+  that only compare stored endpoints remain exact.
 
 - Vignettes a3 and m4 describe the complete-record law, the adjustment, the
   cluster-count metadata and the historical option; m4 carries an

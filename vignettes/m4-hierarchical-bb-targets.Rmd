@@ -298,10 +298,13 @@ k_G <- sqrt((iv_r$cluster_count + 1) / (iv_r$cluster_count - 1)) *
   stats::qt(0.975, iv_r$cluster_count - 1) / stats::qnorm(0.975)
 h <- iv_r$point_estimate
 
+# The cached fit can come from another platform. Recomputed qt()/qnorm()
+# values can differ in their last bits, so use the numerical gates' tolerance.
+# The two checks that only compare stored endpoints remain exact.
 stopifnot(
-  all.equal(k_G, iv_r$width_multiplier, tolerance = 0),
-  all.equal(h - k_G * (iv_r$raw_upper - h), iv_r$reflected_lower, tolerance = 0),
-  all.equal(h - k_G * (iv_r$raw_lower - h), iv_r$reflected_upper, tolerance = 0),
+  all.equal(k_G, iv_r$width_multiplier, tolerance = 1e-12),
+  all.equal(h - k_G * (iv_r$raw_upper - h), iv_r$reflected_lower, tolerance = 1e-12),
+  all.equal(h - k_G * (iv_r$raw_lower - h), iv_r$reflected_upper, tolerance = 1e-12),
   all.equal(min(iv_r$reflected_upper, 1), iv_r$upper, tolerance = 0),
   all.equal(iv_r$reflected_lower, iv_r$lower, tolerance = 0)
 )
